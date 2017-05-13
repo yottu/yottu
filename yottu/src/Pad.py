@@ -47,6 +47,9 @@ class Pad(object):
 		self.size = 0 # Number of lines
 		self.position = 0
 		self.line = ''.encode('utf-8')
+
+
+
 		
 	def stop(self):
 		self._stop.set()
@@ -76,6 +79,9 @@ class Pad(object):
 
 	def set_auto_scroll(self, value):
 		self.__autoScroll = value
+		
+	def get_height(self):
+		return self.__height
 
 
 	def get_position(self):
@@ -93,10 +99,13 @@ class Pad(object):
 		if self.autoScroll is True:
 			self.set_position(self.size)
 			
+	# FIXME merge moveup and down into one def
 	def moveup(self, lines=1):
 		newPos = self.get_position()-lines
 		if newPos >= self.actualpmaxy:
 			self.set_position(newPos)
+		else:
+			self.home()
 		
 	def movedown(self, lines=1):
 		newPos = self.get_position()+lines
@@ -162,3 +171,4 @@ class Pad(object):
 		
 		
 	position = property(get_position, set_position, None, None)
+	height = property(get_height, None, None, None)

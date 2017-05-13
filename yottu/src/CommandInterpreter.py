@@ -217,13 +217,18 @@ class CommandInterpreter(threading.Thread):
 			# Scroll
 			elif c == 'KEY_HOME':
 				self.wl.home()
-				
 			elif c == 'KEY_END':
 				self.wl.end()
-			elif c == u'w' or c == 'KEY_PPAGE':
+			elif c == 'KEY_PPAGE':
+				self.wl.moveup(5)
+			elif c == 'KEY_NPAGE':
+				self.wl.movedown(5)
+			elif c == 'KEY_UP' or c == u'w':
 				self.wl.moveup()
-			elif c == u's' or c == 'KEY_NPAGE':
+			elif c == 'KEY_DOWN' or c == u's':
 				self.wl.movedown()
+				
+			# change pad	
 			elif c == u'1':
 				try:
 					self.wl.raise_window(0)
