@@ -82,6 +82,11 @@ class Autism:
 			except Exception:
 				raise
 			break
+		
+	def post(self, comment):
+		pass
+
+
 			
 	def get(self, source="board"):
 		self._query(source)

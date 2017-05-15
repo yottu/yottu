@@ -83,9 +83,13 @@ class WindowLogic(threading.Thread):
 			except Exception, err:
 				self.dlog.excpt(err)++-2
 			
-		
 	def get_active_window(self):
+		"""Returns the index number of the active window"""
 		return self.__activeWindow
+	
+	def get_active_window_ref(self):
+		"""Returns the active window"""
+		return self.windowList[self.__activeWindow]
 
 
 	def set_active_window(self, value):

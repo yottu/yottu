@@ -21,12 +21,17 @@ class ThreadFetcher(threading.Thread):
 		self.nickname = nickname		
 		self.sb = Statusbar(self.stdscr, self.nickname, self.board, self.threadno)
 		self.tb = Titlebar(self.stdscr)
+		self.update_n = 9
 		Thread.__init__(self)
 		self._stop = threading.Event()
+		self._update = threading.Event()
 		self._active = False # BoardPad the ThreadFetcher runs in is active
 		
 	def stop(self):
 		self._stop.set()
+		
+	def update(self):
+		self._update.set()
 		
 	def active(self):
 		self._active = True
@@ -38,6 +43,7 @@ class ThreadFetcher(threading.Thread):
 	def on_resize(self):
 		self.sb.on_resize()
 		self.tb.on_resize()
+		
 
 	def run(self):
 		dlog = DebugLog()
@@ -56,6 +62,8 @@ class ThreadFetcher(threading.Thread):
 		while True:
 			
 			dlog.msg("ThreadFetcher: Fetching for /" + self.board + "/" + self.threadno, 3)
+			
+			# leave update loop if stop is set
 			if self._stop.is_set():
 				dlog.msg("ThreadFetcher: Stop signal for /" + self.board + "/" + self.threadno, 3)
 				break
@@ -72,7 +80,14 @@ class ThreadFetcher(threading.Thread):
 				pass
 				
 			for update_n in range (9, -1, -1):
+				
+				# Leave countdown loop if stop is set
 				if self._stop.is_set():
+					break
+				
+				# Update thread immediately
+				if self._update.is_set():
+					self._update.clear()
 					break
 				
 				try:

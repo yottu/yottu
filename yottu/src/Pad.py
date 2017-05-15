@@ -38,8 +38,8 @@ class Pad(object):
 		
 		self.dlog = DebugLog("debug.log")
 		
-		self.dlog.msg("pmaxy: " + str(self.pmaxy))
-		self.dlog.msg("actualpmaxy: " + str(self.actualpmaxy))
+		self.dlog.msg("pmaxy: " + str(self.pmaxy), 5)
+		self.dlog.msg("actualpmaxy: " + str(self.actualpmaxy), 5)
 
 		self._active = False # Pad is actively viewed by user
 		

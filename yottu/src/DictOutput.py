@@ -29,18 +29,25 @@ class DictOutput(object):
 			raise
 		
 		
+		#self.tdict['OP'] = {'no': 213, 'com': 'unset', 'sub': 'unset'.encode('utf-8'), 'semantic-url': 'unset'.encode('utf-8')}
+		
 		for posts in self.thread['posts']:
 			try:
-			# skip if record found in dictionary
+				
+				# skip if record found in dictionary
 				no = posts['no']
+				
 				
 				# Post is OP
 				try:
-					if posts['resto'] is 0:
-						self.tdict['OP'] = {'no': posts['no'], 'sub': posts['sub'].encode('utf-8'), 'semantic_url': posts['semantic_url'].encode('utf-8')}					
+					if posts['resto'] == 0:
+						debug.msg("Resto4: " + str(posts['resto']))
+						self.tdict['OP'] = {'no': str(posts['no']), 'sub': posts['sub'].encode('utf-8'), 'semantic_url': posts['semantic_url'].encode('utf-8')}
+						debug.msg("tdict['OP']: " + str(self.tdict['OP']))
 				
 				except Exception as e:
-					debug.msg("Exception:" + e.msg() + "\n")
+					debug.msg("Error while processing OP: " + str(e))
+					#debug.msg("Exception:" + e.msg() + "\n")
 					raise
 					
 				if no in self.tdict:
@@ -105,22 +112,34 @@ class DictOutput(object):
 				
 				comlist = com.split()
 				try:
+					
 					for word in comlist:
+						
 						if word not in refposts:
 							self.bp.addstr(u''.join((word + " ")).encode('utf8'))
+							
 						else:
+							
 							# Comment and reference color encoding
 							try:
 								refcolor = self.tdict[int(word)]['color']
 								self.bp.addstr(">>" + word + " ", curses.color_pair(refcolor))
-								# if reference points to nickname, higligt the name
+								
+								# if reference points to nickname, highlight the name
 								if re.match(self.tdict[int(word)]['name'], self.nickname):
 									self.bp.addstr("(You) ", curses.A_BOLD | curses.color_pair(221))
-									Notifier.send(com)
-#								if re.match(word, threadno):
-#									self.bp.addstr("(OP) ", curses.A_BOLD | curses.color_pair(197))
+									try:
+										Notifier.send(name, com)
+									except:
+										pass
+									
+								# highlight OP reference
+								if re.match(word, self.tdict['OP']['no']):
+									self.bp.addstr("(OP) ", curses.A_BOLD | curses.color_pair(197))
+
 							except:
 								self.bp.addstr(word)
+								
 				except:
 					self.bp.addstr("[File only]")
 			except:
@@ -130,10 +149,12 @@ class DictOutput(object):
 			
 		try:
 			self.title = self.tdict['OP']['sub']
-		except Exception as e:
-			self.title = self.tdict['OP']['com']
-			debug.msg("Couldn't set title" + str(e) + "\n")
-			pass
+		except:
+			try: 
+				self.title = self.tdict['OP']['com']
+			except Exception as e:
+				debug.msg("Couldn't set title" + str(e) + "\n")
+				pass
 		
 		
 		

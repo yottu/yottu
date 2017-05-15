@@ -6,6 +6,7 @@ from threading import Thread
 import curses
 import threading
 from DebugLog import DebugLog
+from BoardPad import BoardPad
 import Config
 import re
 
@@ -67,8 +68,32 @@ class CommandInterpreter(threading.Thread):
 			return
 
 		
-		self.dlog.msg("Trying to execute command: " + self.command)
-		if re.match("join", self.command):
+		self.dlog.msg("Trying to execute command: " + self.command, 5)
+		
+		# Text input
+		if re.match("say", self.command):
+			cmd_args.pop(0)
+			comment = " ".join(cmd_args)
+			# Check if executed on a BoardPad
+			active_window = self.wl.get_active_window_ref()
+			if not isinstance(active_window, BoardPad):
+				self.dlog.msg("/say must be used on a BoardPad, not " + str(active_window))
+				return
+			
+			active_thread_OP = active_window.threadno
+			self.dlog.msg("Creating post on " + str(self.context) + "/"
+						+ str(active_thread_OP) + " | Comment: " + str(comment))
+			active_window.post(str(comment))
+
+		elif re.match("captcha", self.command):
+			cmd_args.pop(0)
+			captcha = " ".join(cmd_args)
+			active_window = self.wl.get_active_window_ref()
+			active_window.set_captcha(str(captcha))
+
+		
+		# "Joining" a new thread
+		elif re.match("join", self.command):
 			
 			try:
 				joinThread = re.sub('>', '', cmd_args[1])
@@ -169,10 +194,11 @@ class CommandInterpreter(threading.Thread):
 			self.dlog.msg("getkey(): "+ c, 5)
 			#c = self.stdscr.getch()
 			
-			if self.cmode:
+			if self.cmode or self.tmode:
 				
 				if c == "KEY_BACKSPACE":
 					
+					# Delete last character after, len("[/] ") == 4 
 					if self.clinepos > 4:
 						self.command = self.command[:-1]
 						self.clinepos = self.clinepos - 1
@@ -186,6 +212,7 @@ class CommandInterpreter(threading.Thread):
 						if c == u'\n':
 							self.exec_com()
 						self.cmode = False
+						self.tmode = False
 						self.clean()
 						self.stdscr.addstr(self.screensize_x-1, 0, "[^] ")
 						curses.curs_set(False)
@@ -212,6 +239,7 @@ class CommandInterpreter(threading.Thread):
 			# Text input mode
 			elif c == u't':
 				self.stdscr.addstr(self.screensize_x-1, 0, "[>] ")
+				self.command = "say "
 				self.tmode = True
 				
 			# Scroll
@@ -227,6 +255,7 @@ class CommandInterpreter(threading.Thread):
 				self.wl.moveup()
 			elif c == 'KEY_DOWN' or c == u's':
 				self.wl.movedown()
+				
 				
 			# change pad	
 			elif c == u'1':

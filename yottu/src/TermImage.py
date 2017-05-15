@@ -1,0 +1,15 @@
+'''
+Created on May 15, 2017
+
+@author: yottu-dev@gmail.com
+'''
+from subprocess import call
+
+class TermImage(object):
+    '''
+    classdocs
+    '''
+        
+    @staticmethod
+    def display(filename):
+        call(["./imgt", filename])
