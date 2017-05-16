@@ -73,7 +73,7 @@ class Pad(object):
 		(self.pposy, self.pposx) = self.mypad.getyx()
 		(self.pmaxy, self.pmaxx) = self.mypad.getmaxyx()
 		self.actualpmaxy = self.pmaxy-Pad.padbuffersize
-		self.movedown()
+		#self.movedown()
 		
 		
 

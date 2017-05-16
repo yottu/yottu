@@ -12,4 +12,7 @@ class TermImage(object):
         
     @staticmethod
     def display(filename):
-        call(["./imgt", filename])
+        try:
+            call(["./imgt", filename])
+        except:
+            raise

@@ -74,7 +74,10 @@ class PostReply(object):
         f.close()
 
     def display_captcha(self):
-        TermImage.display(self.captcha_image_filename)
+        try:
+            TermImage.display(self.captcha_image_filename)
+        except:
+            raise
 
     def post(self, comment="", subject="", file=""):
 

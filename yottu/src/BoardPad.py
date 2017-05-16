@@ -53,9 +53,17 @@ class BoardPad(Pad):
 	def post(self, comment):
 		self.comment = comment
 		self.postReply.get_captcha_challenge()
-		self.postReply.display_captcha()
+		self.display_captcha()
+			
 		
 	def set_captcha(self, captcha):
 		self.postReply.set_captcha_solution(captcha)
 		self.postReply.post(self.comment)
 		self.threadFetcher.update()
+		
+	def display_captcha(self):
+		try:
+			self.postReply.display_captcha()
+		except:
+			# FIXME: Better error handling
+			self.dlog.msg("Could not display captcha, check if /usr/lib/w3m/w3mimgdisplay is installed")

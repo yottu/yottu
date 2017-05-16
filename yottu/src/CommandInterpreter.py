@@ -9,6 +9,8 @@ from DebugLog import DebugLog
 from BoardPad import BoardPad
 import Config
 import re
+import pickle
+from TermImage import TermImage
 
 class CommandInterpreter(threading.Thread):
 	def __init__(self, stdscr, wl):
@@ -22,19 +24,21 @@ class CommandInterpreter(threading.Thread):
 		
 		Thread.__init__(self)
 		
-		self.cfg = Config.Config(".config/yottu/", "config")
+		# For Saving/Restoring window state #FIXME
+		#self.state_file = "state.pickle"
+		#self.cfg = Config.Config(".config/yottu/", "config")
+		#self.state_file = self.cfg.get_config_dir_full_path() + self.state_file
+		
 		self.cmode = False # command mode
 		self.tmode = False # talking mode (no need to prefix /say)
 		self.clinepos = 4
 		self.command = ""
 		self.context = "int" # context in which command is executed
-		
-		
-		curses.curs_set(False)
-		
+		curses.curs_set(False)  # @UndefinedVariable
 		self.terminate = 0
-		
 		self.dlog = DebugLog(self.wl)
+		#self.restore_state()
+		
 		
 	def on_resize(self):
 		self.stdscr.clear()
@@ -57,12 +61,56 @@ class CommandInterpreter(threading.Thread):
 		''' return list from whitespace separated string '''
 		''' TODO: Implement validity matching logic '''
 		return string.split()
+	
+	def clear_cmdinput(self):
+		# save current position 
+		(y, x) = self.stdscr.getyx()
 		
+		# clear line
+		self.stdscr.move(self.screensize_x-1, 0)
+		self.stdscr.clrtoeol()
+		self.stdscr.addstr("[x] ")
+		
+		# redraw active window
+		#active_window = self.wl.get_active_window_ref()
+		# ...
+		
+		# restore position
+		self.stdscr.move(y, x)
+	
+	# Save joined threads to file in order to restore on next start	
+	# TODO Just restoring the BoardPads doesn't currently restore the Bars 
+	# FIXME: this is a mess, either delete or come up with a better concept
+# 	def save_state(self):
+# 		self.dlog.msg("Saving window state.")
+# 		try:
+# 			with open(self.state_file, "wb") as fh:
+# 				for window in self.wl.windowList:
+# 					self.dlog.msg("Iterating " + str(window))
+# 					if isinstance(window, BoardPad):
+# 				#	self.dlog.msg("Saving BoardPad")
+# 						pickle.dump(window.threadno, fh)
+# 						self.dlog.msg("Window state saved.")
+# 		except Exception as err:
+# 			self.dlog.msg("Could not save window state: " + str(err))
+# 			raise
+		
+					
+# 	def restore_state(self):
+# 		try:
+# 			with open(self.state_file, "rb") as fh:
+# 				for threadno in pickle.load(fh):
+# 					self.dlog.msg("Restored thread: " + str(threadno))
+# 					self.command = "join " + str(threadno)
+# 					self.exec_com()
+# 		except Exception as err:
+# 			self.dlog.msg("Could not restore window state: " + str(err))
+# 			pass
+				
+
 	def exec_com(self):
 		
 		cmd_args = self.command.split()
-		
-		
 		
 		if len(cmd_args) == 0:
 			return
@@ -72,6 +120,7 @@ class CommandInterpreter(threading.Thread):
 		
 		# Text input
 		if re.match("say", self.command):
+			self.clear_cmdinput()
 			cmd_args.pop(0)
 			comment = " ".join(cmd_args)
 			# Check if executed on a BoardPad
@@ -84,13 +133,35 @@ class CommandInterpreter(threading.Thread):
 			self.dlog.msg("Creating post on " + str(self.context) + "/"
 						+ str(active_thread_OP) + " | Comment: " + str(comment))
 			active_window.post(str(comment))
+			
 
-		elif re.match("captcha", self.command):
-			cmd_args.pop(0)
-			captcha = " ".join(cmd_args)
+		# /captcha: show (0 args) and solve captcha (>0 args)
+		elif re.match(r"^captcha", self.command):
+			
 			active_window = self.wl.get_active_window_ref()
-			active_window.set_captcha(str(captcha))
-
+			
+			try:
+				if len(cmd_args) == 1:
+					try:
+						active_window.display_captcha()
+						return
+					except Exception as err:
+						self.dlog.msg("Can't display captcha: " + str(err))
+						return
+			except Exception as err:
+				self.dlog.msg("Can't display captcha: " + str(err))
+				return
+				
+			self.clear_cmdinput()
+				
+			try:
+				cmd_args.pop(0)
+				captcha = " ".join(cmd_args)
+				active_window.set_captcha(str(captcha))
+			except Exception as err:
+				self.dlog.msg("Can't submit captcha: " + str(err))
+				pass
+			
 		
 		# "Joining" a new thread
 		elif re.match("join", self.command):
@@ -168,18 +239,19 @@ class CommandInterpreter(threading.Thread):
 		
 	# Loop that refreshes on input
 	def run(self):
-		curses.mousemask(-1)
+		curses.mousemask(-1)  # @UndefinedVariable
 		while True:
 						
 			if self.terminate is 1:
 				self.dlog.msg("CommandInterpreter: self.terminate is 1")
+				#self.save_state()
 				break
 			
 			
 			# moves cursor to current position 
 			#self.stdscr.move(self.screensize_x-1, self.clinepos)
 			if self.cmode:
-				curses.curs_set(True)
+				curses.curs_set(True)  # @UndefinedVariable
 				
 			c = self.stdscr.getkey()
 			
@@ -189,7 +261,7 @@ class CommandInterpreter(threading.Thread):
 				continue
 			
 			if self.cmode:
-				curses.curs_set(True)
+				curses.curs_set(True)  # @UndefinedVariable
 	
 			self.dlog.msg("getkey(): "+ c, 5)
 			#c = self.stdscr.getch()
@@ -215,7 +287,7 @@ class CommandInterpreter(threading.Thread):
 						self.tmode = False
 						self.clean()
 						self.stdscr.addstr(self.screensize_x-1, 0, "[^] ")
-						curses.curs_set(False)
+						curses.curs_set(False)  # @UndefinedVariable
 						continue
 				except Exception as e:
 					self.dlog.excpt(e)
@@ -233,11 +305,13 @@ class CommandInterpreter(threading.Thread):
 			
 			# Command input mode
 			elif c == u'/' or c == u'i':
+				self.clear_cmdinput()
 				self.stdscr.addstr(self.screensize_x-1, 0, "[/] ")
 				self.cmode = True
 				
 			# Text input mode
 			elif c == u't':
+				self.clear_cmdinput()
 				self.stdscr.addstr(self.screensize_x-1, 0, "[>] ")
 				self.command = "say "
 				self.tmode = True
@@ -324,7 +398,7 @@ class CommandInterpreter(threading.Thread):
 				except:
 					raise
 			elif c == "KEY_MOUSE":
-				mouse_state = curses.getmouse()[4]
+				mouse_state = curses.getmouse()[4]  # @UndefinedVariable
 				self.dlog.msg("getmouse(): "+ str(mouse_state), 5)
 				#self.stdscr.addstr(str(mouse_state))
 				if int(mouse_state) == 134217728:

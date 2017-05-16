@@ -12,12 +12,23 @@ from ConfigParser import NoSectionError, DuplicateSectionError
 
 class Config(object):
 	def __init__(self, configDir, configFile):
+		
 		self.homeDir = expanduser("~/")
-		self.configDir = configDir
-		self.configFile = configFile
-		self.configFullPath = self.homeDir + self.configDir + self.configFile
+		self.configDir = configDir # i.e. .config/yottu/
+		self.configDirFullPath = self.homeDir + self.configDir
+		self.configFile = configFile # i.e. config
+		self.configFullPath = self.homeDir + self.configDir + self.configFile # i.e. /home/user/.config/yottu/config
+		
 		self.log = DebugLog.DebugLog()
 		self.cfg = ConfigParser.ConfigParser()
+
+	def set_config_dir_full_path(self, value):
+	    self.__configDirFullPath = value
+
+
+	def get_config_dir_full_path(self):
+		return self.__configDirFullPath
+
 	
 	
 	def set(self, key, value):
@@ -26,6 +37,7 @@ class Config(object):
 		except DuplicateSectionError as w:
 			self.log.warn(w)
 			pass
+		
 		
 	def readConfig(self):
 		try:
@@ -54,3 +66,5 @@ class Config(object):
 			self.cfg.add_section("Main")
 			items = []
 		return items
+	
+	configDirFullPath = property(get_config_dir_full_path, set_config_dir_full_path, None, None)

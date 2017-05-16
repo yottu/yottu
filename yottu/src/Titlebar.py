@@ -8,20 +8,20 @@ import unicodedata
 class Titlebar(object):
 	def __init__(self, stdscr):
 		self.stdscr = stdscr
-		self.screensize_x, self.screensize_y = stdscr.getmaxyx()
+		self.screensize_y, self.screensize_x = stdscr.getmaxyx()
 		self.sb_blank = 1
 		self.set_title(u"yottu v0.1 - https://github.com/yottu/yottu".encode('utf-8')
 		)
 		
 	def on_resize(self):
-		self.screensize_x, self.screensize_y = self.stdscr.getmaxyx()
+		self.screensize_y, self.screensize_x = self.stdscr.getmaxyx()
 		self.draw()
 
 	def get_title(self):
 		return self.__title
 
 	def set_title(self, value):
-		self.__title = value
+		self.__title = value[:self.screensize_x]
 		self.draw()
 
 		
@@ -49,7 +49,7 @@ class Titlebar(object):
 				lineLength +=1
 			
 #		self.dlog.msg("Added " + str(curnewlines) + " 
-		self.sb_blank = self.screensize_y - lineLength
+		self.sb_blank = self.screensize_x - lineLength
 	
 	
 	title = property(None, set_title, None, None)
