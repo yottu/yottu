@@ -62,7 +62,7 @@ class CommandInterpreter(threading.Thread):
 					self.dlog.msg("Joining thread: >>>" + board + "/" + thread)
 					self.wl.join_thread(board, thread)
 		except Exception:
-			raise
+			pass
 		
 		
 	def setting_list(self, key):
