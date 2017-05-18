@@ -10,7 +10,6 @@ import threading
 from threading import Thread
 from DebugLog import DebugLog
 from CatalogPad import CatalogPad
-from sqlalchemy.orm.session import ACTIVE
 
 
 class WindowLogic(threading.Thread):
@@ -45,6 +44,14 @@ class WindowLogic(threading.Thread):
 			self._stop = threading.Event()
 		except:
 			raise
+
+	def get_window_list(self):
+		return self.__windowList
+
+
+	def set_window_list(self, value):
+		self.__windowList = value
+
 		
 	def join_thread(self, board, thread):
 		try:
@@ -140,3 +147,4 @@ class WindowLogic(threading.Thread):
 		self.compad.addstr(str(string) + "\n")
 		
 	activeWindow = property(get_active_window, set_active_window, None, None)
+	windowList = property(get_window_list, set_window_list, None, None)

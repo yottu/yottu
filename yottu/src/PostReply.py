@@ -11,6 +11,9 @@ import requests
 from TermImage import TermImage
 import Image
 
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
+
 class PostReply(object):
     '''
     classdocs

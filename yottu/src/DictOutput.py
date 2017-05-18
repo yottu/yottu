@@ -12,6 +12,9 @@ import datetime
 from DebugLog import DebugLog
 from bs4 import BeautifulSoup
 
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
+
 class DictOutput(object):
 	def __init__(self, bp):
 		self.bp = bp

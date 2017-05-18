@@ -6,11 +6,17 @@ Created on Oct 21, 2015
 import ConfigParser
 import DebugLog
 import os
+import json
 from os.path import expanduser
 from ConfigParser import NoSectionError, DuplicateSectionError
 
 
 class Config(object):
+	'''
+		(1) set key, val pairs with set(k,v) and get(k)
+		(2) set key, json.dumps pairs with add(k,v) remove(k,v) and list(k)
+	'''
+	
 	def __init__(self, configDir, configFile):
 		
 		self.homeDir = expanduser("~/")
@@ -19,11 +25,13 @@ class Config(object):
 		self.configFile = configFile # i.e. config
 		self.configFullPath = self.homeDir + self.configDir + self.configFile # i.e. /home/user/.config/yottu/config
 		
-		self.log = DebugLog.DebugLog()
+		self.dlog = DebugLog.DebugLog()
 		self.cfg = ConfigParser.ConfigParser()
+		
+		self.readConfig()
 
 	def set_config_dir_full_path(self, value):
-	    self.__configDirFullPath = value
+		self.__configDirFullPath = value
 
 
 	def get_config_dir_full_path(self):
@@ -32,18 +40,64 @@ class Config(object):
 	
 	
 	def set(self, key, value):
+		''' sets key to json.dumps(value)'''
 		try:
-			self.cfg.set('Main', key, value)
+			# self.cfg is a ConfigParser object
+			self.cfg.set('Main', key, json.dumps(value))
 		except DuplicateSectionError as w:
-			self.log.warn(w)
+			self.dlog.warn(w)
 			pass
+		except Exception as e:
+			self.dlog.excpt(e)
+			pass
+		
+	def add(self, key, key_sub, val_sub):
+		'''add json.dumps to value'''
+		
+		new_keyval = {key_sub : val_sub}
+		keyval = []
+		
+		# try to load existing values
+		try:
+			keyval = json.loads(self.list(key))
+		except:
+			pass
+		
+		keyval.append(new_keyval)
+		
+		json_keyval = json.dumps(json.JSONEncoder().encode(keyval))
+		self.cfg.set('Main', key, json_keyval)
+		
+	# TODO: implement
+	def remove(self, key, key_sub, val_sub):
+		'''remove json.dumps from value'''
+# 		try:
+# 			keyval = json.loads(self.list(key))
+# 		except:
+# 			pass
+# 		del keyval['key_sub']
+		pass
+	
+	def clear(self, key):
+		'''set to empty list'''
+		# FIXME: is the encode really necessary 
+		self.cfg.set('Main', key, json.dumps(json.JSONEncoder().encode([])))
+	
+	def list(self, key):
+		'''list'''
+		try:
+			items = self.getSettings()
+			self.dlog.msg("listing " + str(json.dumps(dict(items)[key])))
+			return json.loads(dict(items)[key])
+		except:
+			raise
 		
 		
 	def readConfig(self):
 		try:
 			self.cfg.read(self.configFullPath)
 		except Exception as e:
-			self.log.excpt(e)
+			self.dlog.excpt(e)
 			
 			
 	def writeConfig(self):
@@ -52,19 +106,30 @@ class Config(object):
 			if not os.path.exists(self.homeDir + self.configDir):
 				os.makedirs(self.homeDir + self.configDir)
 				
-			with open(self.configFullPath, 'w') as fh:
+			with open(self.configFullPath, 'wb') as fh:
 				self.cfg.write(fh)
 		
 		except Exception as e:
-			self.log.excpt(e)
+			self.dlog.excpt(e)
 			
-	def getSettings(self):
-		self.readConfig()
+	def getSettings(self, section='Main'):
+		'''returns a list of all settings'''
 		try:
-			items = self.cfg.items('Main')
+			items = self.cfg.items(section)
 		except NoSectionError:
-			self.cfg.add_section("Main")
+			self.cfg.add_section(section)
 			items = []
 		return items
+	
+	# FIXME: This can only get one value (a string), combine with json or csv module
+	def get(self, key, section='Main'):
+		'''returns values of key in section'''
+		try:
+			items = self.getSettings()
+			return dict(items)[json.loads(key)]
+		except:
+			raise
+		
+		
 	
 	configDirFullPath = property(get_config_dir_full_path, set_config_dir_full_path, None, None)

@@ -17,7 +17,7 @@ class DebugLog(object):
 	def compad(self, message):
 		if self.wl != '000':
 			try:
-				timePrefix = time.strftime("[%H:%M] ")
+				timePrefix = time.strftime("%H:%M ")
 				self.wl.compadout(timePrefix + message)
 			except:
 				pass		

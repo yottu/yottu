@@ -9,8 +9,7 @@ from DebugLog import DebugLog
 from BoardPad import BoardPad
 import Config
 import re
-import pickle
-from TermImage import TermImage
+import json
 
 class CommandInterpreter(threading.Thread):
 	def __init__(self, stdscr, wl):
@@ -19,14 +18,17 @@ class CommandInterpreter(threading.Thread):
 		self.screensize_x = 0
 		self.screensize_y = 0
 		
-		self.screensize_x, self.screensize_y = self.stdscr.getmaxyx();
+		self.screensize_x, self.screensize_y = self.stdscr.getmaxyx()
 		self.stdscr.addstr(self.screensize_x-1, 0, "[^] ")
+		
 		
 		Thread.__init__(self)
 		
+		self.cfg = Config.Config(".config/yottu/", "config")
+		self.settings = None
+		self.readconfig()
 		# For Saving/Restoring window state #FIXME
 		#self.state_file = "state.pickle"
-		#self.cfg = Config.Config(".config/yottu/", "config")
 		#self.state_file = self.cfg.get_config_dir_full_path() + self.state_file
 		
 		self.cmode = False # command mode
@@ -37,7 +39,38 @@ class CommandInterpreter(threading.Thread):
 		curses.curs_set(False)  # @UndefinedVariable
 		self.terminate = 0
 		self.dlog = DebugLog(self.wl)
+		
+		self.autojoin()
+
 		#self.restore_state()
+		
+	def readconfig(self):
+		self.settings = self.cfg.getSettings()
+
+	# FIXME: context not saved, ConfigParser limited to one string (one thread)
+	# FIXME: key value should actually assign values to keys {'threadno': 12345, 'board': 'int'} 
+	# TODO threadno should be a string to search the catalog for
+	# on multiple results make a selectable catalog list 
+	def autojoin(self):
+		try:
+			threads = self.cfg.list("autojoin_threads")
+			if (threads):
+				for kv in json.loads(threads):
+					self.dlog.msg(str(kv.items()[0][0]))
+					board = kv.items()[0][0]
+					thread = kv.values()[0]
+					self.dlog.msg("Joining thread: >>>" + board + "/" + thread)
+					self.wl.join_thread(board, thread)
+		except Exception:
+			raise
+		
+		
+	def setting_list(self, key):
+		try:
+			listing = self.cfg.list(key)
+			self.dlog.msg("Values for " + key + ": " + str(listing))
+		except:
+			raise
 		
 		
 	def on_resize(self):
@@ -162,6 +195,46 @@ class CommandInterpreter(threading.Thread):
 				self.dlog.msg("Can't submit captcha: " + str(err))
 				pass
 			
+		elif re.match("autojoin", self.command):
+			try:
+				setting_key = "autojoin_threads"
+				
+				cmd_args.pop(0)
+				key = cmd_args.pop(0) # also for single argument commands 
+				
+				if key == "clear":
+					self.cfg.clear(setting_key)
+					self.cfg.writeConfig()
+					
+				if key == "save":
+					# Iterate over window list
+					self.cfg.clear(setting_key)
+					for window in self.wl.get_window_list():
+						
+						if isinstance(window, BoardPad):
+							# Add board and threadno of every BoardPad to config
+							self.cfg.add(setting_key, window.board, window.threadno)
+					self.cfg.writeConfig()
+				
+				if len(cmd_args) != 2:
+					self.dlog.msg("Listing autojoins - valid parameters: add <board> <thread>, remove <board> <thread>, list")
+					self.setting_list(setting_key)
+					return
+				
+				board = cmd_args.pop(0)
+				threadno = cmd_args.pop(0)
+				
+				if key == "add":
+					self.cfg.add(setting_key, board, threadno)
+				elif key == "remove":
+					self.cfg.remove(setting_key, board, threadno)
+				else:
+					self.dlog.msg("Valid parameters: add <board> <thread>, remove <board> <thread>, list")
+					
+			except:
+				self.dlog.msg("Exception in CommandInterpreter.exec_com() -> autojoin")
+				raise
+				
 		
 		# "Joining" a new thread
 		elif re.match("join", self.command):
@@ -221,6 +294,7 @@ class CommandInterpreter(threading.Thread):
 				val = ' '.join(cmd_args[2:])
 				try:
 					self.cfg.set(key, val)
+					self.dlog.msg("Set " + key + " = " + val)
 				except Exception as e:
 					self.dlog.excpt(e)
 					
