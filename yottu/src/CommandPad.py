@@ -20,6 +20,9 @@ class CommandPad(Pad):
 		super(CommandPad, self).on_resize()
 		self.tb.on_resize()
 		self.sb.on_resize()
+		
+	def on_update(self):
+		self.sb.draw("")
 	
 	def active(self):
 		super(CommandPad, self).active()

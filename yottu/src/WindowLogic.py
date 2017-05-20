@@ -68,6 +68,9 @@ class WindowLogic(threading.Thread):
 		for window in self.windowList:
 			window.on_resize()
 		self.set_active_window(activeWindow)
+		
+	def on_update(self):
+		self.get_active_window_ref().on_update()
 			
 	def catalog(self, board, search=""):
 		try:

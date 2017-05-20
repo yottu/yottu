@@ -9,7 +9,6 @@ import urllib2
 from bs4 import BeautifulSoup
 import requests
 from TermImage import TermImage
-import Image
 
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
@@ -78,6 +77,7 @@ class PostReply(object):
 
     def display_captcha(self):
         try:
+            pass
             TermImage.display(self.captcha_image_filename)
         except:
             raise

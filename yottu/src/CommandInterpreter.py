@@ -40,6 +40,9 @@ class CommandInterpreter(threading.Thread):
 		self.terminate = 0
 		self.dlog = DebugLog(self.wl)
 		
+		self.command_history = []
+		self.command_history_pos = -1
+		
 		self.autojoin()
 
 		#self.restore_state()
@@ -85,31 +88,12 @@ class CommandInterpreter(threading.Thread):
 		self.command += c
 		self.clinepos += 1
 		
-	def clean(self):
-		self.stdscr.addstr(self.screensize_x-1, 0, str(" "*(self.screensize_y-1)))
-		self.command = ""
-		self.clinepos = 4
-		
 	def parse_param(self, string):
 		''' return list from whitespace separated string '''
 		''' TODO: Implement validity matching logic '''
 		return string.split()
 	
-	def clear_cmdinput(self):
-		# save current position 
-		(y, x) = self.stdscr.getyx()
-		
-		# clear line
-		self.stdscr.move(self.screensize_x-1, 0)
-		self.stdscr.clrtoeol()
-		self.stdscr.addstr("[x] ")
-		
-		# redraw active window
-		#active_window = self.wl.get_active_window_ref()
-		# ...
-		
-		# restore position
-		self.stdscr.move(y, x)
+
 	
 	# Save joined threads to file in order to restore on next start	
 	# TODO Just restoring the BoardPads doesn't currently restore the Bars 
@@ -139,9 +123,66 @@ class CommandInterpreter(threading.Thread):
 # 		except Exception as err:
 # 			self.dlog.msg("Could not restore window state: " + str(err))
 # 			pass
+
+	def clear_cmdinput(self, status_char):
+		# save current position 
+		#(y, x) = self.stdscr.getyx()
+		
+		# clear line
+		self.stdscr.move(self.screensize_x-1, 0)
+		self.stdscr.clrtoeol()
+		self.stdscr.addstr("[" + status_char + "] ")
+		
+		
+		# redraw active window
+		#active_window = self.wl.get_active_window_ref()
+		# ...
+		
+		# restore position
+		#self.stdscr.move(y, x)
+
+	def cmd_history(self, count):
+		
+		self.dlog.msg("Command: " + str(self.command) + " Pos: " 
+					+ str(self.command_history_pos) + " cmdH: " + str(self.command_history))
+		try:
+			newPos = self.command_history_pos + count
+			if newPos >= 0 and newPos <= len(self.command_history):
+				
+				
+				self.command_history_pos += count
+				
+				if newPos == len(self.command_history):
+					self.command = ""
+				else:
+					self.command = self.command_history[self.command_history_pos]
+				
+				
+				self.clear_cmdinput("H")
+				self.clinepos = 4
+
+				self.stdscr.addstr(self.screensize_x-1, self.clinepos, self.command)
+				self.clinepos = 4+len(self.command)
+				
+
+				
+		except:
+			pass
+	
+	def cmd_history_add(self):
+		
+		# remove first element if history contains more than 50 elements
+		if len(self.command_history) > 50:
+			self.command_history.pop(0)
+		self.command_history_pos += 1
+		self.command_history.append(self.command)
+		self.command_history_pos = len(self.command_history)
 				
 
 	def exec_com(self):
+		
+		# add to command history 
+		self.cmd_history_add()
 		
 		cmd_args = self.command.split()
 		
@@ -153,7 +194,7 @@ class CommandInterpreter(threading.Thread):
 		
 		# Text input
 		if re.match("say", self.command):
-			self.clear_cmdinput()
+			self.clear_cmdinput("x")
 			cmd_args.pop(0)
 			comment = " ".join(cmd_args)
 			# Check if executed on a BoardPad
@@ -185,7 +226,7 @@ class CommandInterpreter(threading.Thread):
 				self.dlog.msg("Can't display captcha: " + str(err))
 				return
 				
-			self.clear_cmdinput()
+			self.clear_cmdinput("c")
 				
 			try:
 				cmd_args.pop(0)
@@ -217,7 +258,7 @@ class CommandInterpreter(threading.Thread):
 					self.cfg.writeConfig()
 				
 				if len(cmd_args) != 2:
-					self.dlog.msg("Listing autojoins - valid parameters: add <board> <thread>, remove <board> <thread>, list")
+					self.dlog.msg("Listing autojoins - valid parameters: add <board> <thread>, remove <board> <thread>, list, save")
 					self.setting_list(setting_key)
 					return
 				
@@ -304,6 +345,12 @@ class CommandInterpreter(threading.Thread):
 			if len(cmd_args) is 1:
 				self.wl.compadout("Active window: " + str(self.wl.get_active_window()))
 				
+		elif re.match("clear", self.command):
+			# FIXME this might be both, too much and not enough clearing/redrawing
+			self.stdscr.clear()
+			self.clear_cmdinput("^")
+			self.wl.get_active_window_ref().draw()
+			self.on_resize()
 					
 		elif re.match("quit", self.command):
 			self.terminate = 1
@@ -313,9 +360,13 @@ class CommandInterpreter(threading.Thread):
 		
 	# Loop that refreshes on input
 	def run(self):
+		
+		# Enable mouse events
+		# TODO returns a 2-tuple with mouse capabilities that should be processed
 		curses.mousemask(-1)  # @UndefinedVariable
-		while True:
-						
+		
+		while True:			
+				
 			if self.terminate is 1:
 				self.dlog.msg("CommandInterpreter: self.terminate is 1")
 				#self.save_state()
@@ -353,14 +404,25 @@ class CommandInterpreter(threading.Thread):
 						
 					continue
 				
+				if c == "KEY_UP":
+					self.cmd_history(-1)
+					continue
+						
+				if c == "KEY_DOWN":
+					self.cmd_history(1)
+					continue
+				
 				try:
 					if c == u'\n' or ord(c) == 27:
 						if c == u'\n':
-							self.exec_com()
+							# Only execute if command is not empty
+							if len(self.command) and self.command is not "say ":
+								self.exec_com()
 						self.cmode = False
 						self.tmode = False
-						self.clean()
-						self.stdscr.addstr(self.screensize_x-1, 0, "[^] ")
+						self.command = ""
+						self.clear_cmdinput("^")
+						#self.stdscr.addstr(self.screensize_x-1, 0, "[T] ")
 						curses.curs_set(False)  # @UndefinedVariable
 						continue
 				except Exception as e:
@@ -379,14 +441,16 @@ class CommandInterpreter(threading.Thread):
 			
 			# Command input mode
 			elif c == u'/' or c == u'i':
-				self.clear_cmdinput()
-				self.stdscr.addstr(self.screensize_x-1, 0, "[/] ")
+				self.clear_cmdinput("/")
+				#self.stdscr.addstr(self.screensize_x-1, 0, "[/] ")
+				self.clinepos = 4
 				self.cmode = True
 				
 			# Text input mode
 			elif c == u't':
-				self.clear_cmdinput()
-				self.stdscr.addstr(self.screensize_x-1, 0, "[>] ")
+				self.clear_cmdinput(">")
+				#self.stdscr.addstr(self.screensize_x-1, 0, "[>] ")
+				self.clinepos = 4
 				self.command = "say "
 				self.tmode = True
 				
@@ -472,13 +536,30 @@ class CommandInterpreter(threading.Thread):
 				except:
 					raise
 			elif c == "KEY_MOUSE":
-				mouse_state = curses.getmouse()[4]  # @UndefinedVariable
-				self.dlog.msg("getmouse(): "+ str(mouse_state), 5)
-				#self.stdscr.addstr(str(mouse_state))
-				if int(mouse_state) == 134217728:
-					self.wl.movedown(5)
-				elif int(mouse_state) == 524288:
-					self.wl.moveup(5)
+				try:
+					(mid, x, y, z, bstate) = curses.getmouse()  # @UndefinedVariable
+					#bstate = curses.getmouse()[4]  # @UndefinedVariable
+					self.dlog.msg("getmouse(): id: "+ str(mid) +" x: "+str(x)+" y: "+str(y)+" z: "+str(z)+" bstate: "+ str(bstate), 5)
+					#self.stdscr.addstr(str(bstate))
+					
+					# mouse wheel down
+					if int(bstate) == 134217728:
+						self.wl.movedown(5)
+						
+					# mouse wheel up (curses.BUTTON4_PRESSED)
+					elif int(bstate) == 524288:
+						self.wl.moveup(5)
+					
+					# Left mouse button clicked
+					elif int(bstate) == curses.BUTTON1_CLICKED:  # @UndefinedVariable
+						self.wl.get_active_window_ref().markline(y+1)
+						pass
+						
+						
+				except Exception as err:
+					self.dlog.msg("CommandInterpreter -> c == KEY_MOUSE: ", + str(err))
+					pass
+			
 			else:
 				self.dlog.msg("Unbound key: " + str(c))
 	#				mypad.refresh(padl, padr, padu, padd, pheight, pwidth)

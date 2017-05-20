@@ -19,13 +19,13 @@ class Pad(object):
 		self.stdscr = stdscr
 		
 		
-		screensize_y, screensize_x = self.stdscr.getmaxyx();
-		height = screensize_y-Pad.reservedscreen; width = screensize_x
+		self.screensize_y, self.screensize_x = self.stdscr.getmaxyx();
+		height = self.screensize_y-Pad.reservedscreen; width = self.screensize_x
 		
 		self.pheight = height;
 		self.pwidth = width
-		self.mypad = curses.newpad(height+Pad.padbuffersize, width)
-		curses.curs_set(False)
+		self.mypad = curses.newpad(height+Pad.padbuffersize, width)  # @UndefinedVariable
+		curses.curs_set(False)  # @UndefinedVariable
 		
 		self.padr = 0; self.padu = 0; self.padd = 0
 		self.mypad.refresh(0, self.padr, self.padu, self.padd, self.pheight, self.pwidth)
@@ -44,12 +44,15 @@ class Pad(object):
 		self._active = False # Pad is actively viewed by user
 		
 		self.autoScroll = True
-		self.size = 0 # Number of lines
+		self.size = 0 # Number of lines in pad
 		self.position = 0
 		self.line = ''.encode('utf-8')
+		self.marked_line = None
 
 
-
+	# Updater polls this method every n seconds
+	def on_update(self):
+		pass
 		
 	def stop(self):
 		self._stop.set()
@@ -62,7 +65,7 @@ class Pad(object):
 		
 	def on_resize(self):
 		screensize_y, screensize_x = self.stdscr.getmaxyx()
-		curses.resize_term(screensize_y, screensize_x)
+		curses.resize_term(screensize_y, screensize_x)  # @UndefinedVariable
 		
 		height = screensize_y-self.reservedscreen; width = screensize_x
 		self.pheight = height;
@@ -73,7 +76,7 @@ class Pad(object):
 		(self.pposy, self.pposx) = self.mypad.getyx()
 		(self.pmaxy, self.pmaxx) = self.mypad.getmaxyx()
 		self.actualpmaxy = self.pmaxy-Pad.padbuffersize
-		#self.movedown()
+		self.draw()
 		
 		
 
@@ -125,14 +128,12 @@ class Pad(object):
 	def move(self, pos):
 		try:
 			self.dlog.msg("Pad: in move", 5)
-			
 			self.dlog.msg("pmaxy: " + str(self.pmaxy), 5)
-			
 			self.dlog.msg("pmaxx: " + str(self.pmaxy), 5)
 			self.dlog.msg("actualpmaxy: " + str(self.actualpmaxy), 5)
 
-
 			newPos = pos-(self.pmaxy-(Pad.padbuffersize))
+			
 			self.dlog.msg("newPos: " + str(newPos), 5)
 
 			self.mypad.refresh(newPos, 0, 1, 0, self.actualpmaxy, self.pmaxx)
@@ -154,7 +155,63 @@ class Pad(object):
 		self.size += int(curnewlines)
 #		self.dlog.msg("Added " + str(curnewlines) + " Total: " + str(self.size) + " new lines for " + str(len(line)) + "c\n" )
 	
-	def addstr(self, string, options=curses.A_NORMAL):
+	
+	# FIXME: resizing messes up the position
+	def markline(self, line):
+		try:
+			
+			y, x = self.save_position()
+			
+			self.unmarkline()
+			previous_marked_line = self.marked_line
+			
+			# line: absolute y-postion on screen
+			# get_position(): position in virtual pad
+			# screensize_y: number of lines on screen
+			# unused_lines: lines the pad does not cover + 1 for command input
+			m = str("line: " + str(line) + " pos: " + str(self.get_position()) + " y: " + str(self.screensize_y))
+			self.dlog.msg(m)  
+			self.dlog.msg(str(self.size))
+			
+			unused_lines = 1
+			if self.size < self.screensize_y:
+				unused_lines = self.screensize_y - self.size -2
+			self.marked_line = line + self.get_position() - self.screensize_y + unused_lines
+			
+			# Just unmark the line if clicked twice
+			if previous_marked_line == self.marked_line:
+				self.marked_line = None
+				return
+			
+			self.dlog.msg("Marking line " + str(self.marked_line))
+			
+			self.mypad.chgat(self.marked_line, 0, curses.A_STANDOUT)  # @UndefinedVariable
+			
+		except Exception as err:
+			self.dlog.msg("Pad.markline(): " + str(err))
+			
+		finally:
+			self.restore_postion(y, x)
+			self.draw()
+			
+	def unmarkline(self):
+		try:
+			if self.marked_line is not None:
+				self.mypad.chgat(self.marked_line, 0, curses.A_NORMAL)  # @UndefinedVariable
+		except Exception as err:
+			self.dlog.msg("Pad.unmarkline(): " + str(err))
+			pass
+		
+	def save_position(self):
+		y, x = self.mypad.getyx()
+		self.dlog.msg("y, x saved: " + str(y) + ", " + str(x))
+		return y, x
+		
+	def restore_postion(self, y, x):
+		self.dlog.msg("y, x restored: " + str(y) + ", " + str(x))
+		self.mypad.move(y, x)
+	
+	def addstr(self, string, options=curses.A_NORMAL):  # @UndefinedVariable
 		
 		self.mypad.addstr(string, options)
 		self.line += string.decode('utf-8')
@@ -168,7 +225,7 @@ class Pad(object):
 			
 	def draw(self):
 		self.set_position(self.get_position())
-		
+		self.stdscr.refresh()
 		
 	position = property(get_position, set_position, None, None)
 	height = property(get_height, None, None, None)
