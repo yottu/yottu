@@ -68,7 +68,7 @@ class Pad(object):
 		curses.resize_term(screensize_y, screensize_x)  # @UndefinedVariable
 		
 		height = screensize_y-self.reservedscreen; width = screensize_x
-		self.pheight = height;
+		self.pheight = height
 		self.pwidth = width
 		
 		self.mypad.resize(self.pheight+Pad.padbuffersize, self.pwidth)
@@ -155,9 +155,58 @@ class Pad(object):
 		self.size += int(curnewlines)
 #		self.dlog.msg("Added " + str(curnewlines) + " Total: " + str(self.size) + " new lines for " + str(len(line)) + "c\n" )
 	
+	def get_post_no_of_marked_line(self):
+		try:
+			if self.marked_line is not None:
+				
+				postno = ""
+				
+				for pos in range(6, 20):
+					char = chr(self.mypad.inch(self.marked_line, pos) & curses.A_CHARTEXT)  # @UndefinedVariable
+					
+					if pos == 6 or pos == 7:
+						if char != ">":
+							return None
+					else:
+						try:
+							if int(char):
+								pass
+							
+							postno += char
+						except Exception as err:
+							if len(postno) > 0:
+								return postno
+							return None 
+						
+				
+		except Exception as err:
+			self.dlog.msg("Pad.get_postno_of_marked_line: " + str(err))
+			return None
+		
+	
+	def reverseline(self, pos_y, mode=curses.A_STANDOUT):  # @UndefinedVariable
+		'''Changes background to font and font to background in a pos_y (y-pos)'''
+		try:
+			for x in range (0, self.pwidth):
+				
+				charattr = self.mypad.inch(pos_y, x)
+				
+				# Filter some attributes for preservation
+				attrs = charattr & curses.A_ATTRIBUTES ^ curses.A_STANDOUT ^ curses.A_COLOR # @UndefinedVariable
+			#	color = charattr & curses.A_COLOR  # @UndefinedVariable
+			#	char = chr(charattr & curses.A_CHARTEXT)  # @UndefinedVariable
+				
+			#	color_pair_number = curses.pair_number(color)  # @UndefinedVariable
+				
+				self.mypad.chgat(pos_y, x, 1,  attrs | mode)  # @UndefinedVariable
+			#	self.dlog.msg("Size of char: " + char +" | " + str(len(char)) + " | inch(): " + str(charattr) + " | cpn: " + str(color_pair_number))
+
+		except Exception as err:
+			self.dlog.msg("Pad.reverseline(): " + str(err))
+			raise
 	
 	# FIXME: resizing messes up the position
-	def markline(self, line):
+	def markline(self, pos_y):
 		try:
 			
 			y, x = self.save_position()
@@ -165,27 +214,22 @@ class Pad(object):
 			self.unmarkline()
 			previous_marked_line = self.marked_line
 			
-			# line: absolute y-postion on screen
+			# pos_y: absolute y-postion on screen
 			# get_position(): position in virtual pad
 			# screensize_y: number of lines on screen
 			# unused_lines: lines the pad does not cover + 1 for command input
-			m = str("line: " + str(line) + " pos: " + str(self.get_position()) + " y: " + str(self.screensize_y))
-			self.dlog.msg(m)  
-			self.dlog.msg(str(self.size))
 			
 			unused_lines = 1
 			if self.size < self.screensize_y:
 				unused_lines = self.screensize_y - self.size -2
-			self.marked_line = line + self.get_position() - self.screensize_y + unused_lines
+			self.marked_line = pos_y + self.get_position() - self.screensize_y + unused_lines
 			
-			# Just unmark the line if clicked twice
+			# Just unmark the pos_y if clicked twice
 			if previous_marked_line == self.marked_line:
 				self.marked_line = None
 				return
 			
-			self.dlog.msg("Marking line " + str(self.marked_line))
-			
-			self.mypad.chgat(self.marked_line, 0, curses.A_STANDOUT)  # @UndefinedVariable
+			self.reverseline(self.marked_line)
 			
 		except Exception as err:
 			self.dlog.msg("Pad.markline(): " + str(err))
@@ -197,18 +241,19 @@ class Pad(object):
 	def unmarkline(self):
 		try:
 			if self.marked_line is not None:
-				self.mypad.chgat(self.marked_line, 0, curses.A_NORMAL)  # @UndefinedVariable
+				self.reverseline(self.marked_line, curses.A_NORMAL)  # @UndefinedVariable
 		except Exception as err:
 			self.dlog.msg("Pad.unmarkline(): " + str(err))
 			pass
 		
 	def save_position(self):
 		y, x = self.mypad.getyx()
-		self.dlog.msg("y, x saved: " + str(y) + ", " + str(x))
 		return y, x
+	
+	def show_image(self):
+		pass
 		
 	def restore_postion(self, y, x):
-		self.dlog.msg("y, x restored: " + str(y) + ", " + str(x))
 		self.mypad.move(y, x)
 	
 	def addstr(self, string, options=curses.A_NORMAL):  # @UndefinedVariable

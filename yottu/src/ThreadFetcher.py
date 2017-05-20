@@ -21,11 +21,21 @@ class ThreadFetcher(threading.Thread):
 		self.nickname = nickname		
 		self.sb = Statusbar(self.stdscr, self.nickname, self.board, self.threadno)
 		self.tb = Titlebar(self.stdscr)
+		self.tdict = {}
+		self.dictOutput = ""
 		self.update_n = 9
 		Thread.__init__(self)
 		self._stop = threading.Event()
 		self._update = threading.Event()
 		self._active = False # BoardPad the ThreadFetcher runs in is active
+
+	def get_tdict(self):
+		return self.__tdict
+
+
+	def set_tdict(self, value):
+		self.__tdict = value
+
 		
 	def stop(self):
 		self._stop.set()
@@ -50,7 +60,7 @@ class ThreadFetcher(threading.Thread):
 		dlog.msg("ThreadFetcher: Running on /" + self.board + "/" + self.threadno, 3)
 		
 		try:
-			dictOutput = DictOutput(self.bp)
+			self.dictOutput = DictOutput(self.bp)
 			getThread = Autism(self.board, self.threadno)
 		except Exception as e:
 			dlog.excpt(e)
@@ -72,8 +82,9 @@ class ThreadFetcher(threading.Thread):
 				getThread.setstdscr(self.stdscr)
 				getThread.get()
 				thread = getattr(getThread, "jsoncontent")
-				dictOutput.refresh(thread)
-				self.tb.set_title(dictOutput.getTitle())
+				self.dictOutput.refresh(thread)
+				self.bp.set_tdict(self.dictOutput.get_tdict())
+				self.tb.set_title(self.dictOutput.getTitle())
 			except Exception as e:
 				self.sb.setStatus(str(e))
 				dlog.excpt(e)
@@ -99,3 +110,5 @@ class ThreadFetcher(threading.Thread):
 				
 
 				time.sleep(1)
+				
+	tdict = property(get_tdict, set_tdict, None, None)

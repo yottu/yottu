@@ -23,6 +23,14 @@ class DictOutput(object):
 		self.thread = ""
 		self.nickname = "asdfasd"
 		self.title = u"yottu v0.1 - https://github.com/yottu/yottu - Init: <DictOutput>".encode('utf-8')
+
+	def get_tdict(self):
+		return self.__tdict
+
+
+	def set_tdict(self, value):
+		self.__tdict = value
+
 		
 	def refresh(self, json):
 		self.thread = json
@@ -110,11 +118,21 @@ class DictOutput(object):
 				filename = self.clean_html(posts['filename'])
 			except:
 				filename = ""
+				
+			try:
+				tim = posts['tim']
+			except:
+				tim = ""
+			try:
+				ext = self.clean_html(posts['ext'])
+			except:
+				ext = ""
 	
 	
 	
 			self.tdict[no] = {'country':country, 'name':name, 'time':time,
-							'com':com, 'trip':trip, 'color':color, 'filename':filename}
+							'com':com, 'trip':trip, 'color':color, 'filename':filename,
+							'tim':tim, 'ext':ext }
 	
 #			try:
 #				line = u' '.join((time, ">>" + str(no), country, "<" + name + ">", com)).encode('utf-8')
@@ -217,14 +235,6 @@ class DictOutput(object):
 				pass
 		
 		
-		
-	def get_tdict(self):
-		return self.__tdict
-
-
-	def set_tdict(self, value):
-		self.__tdict = value
-
 	
 	def getTitle(self):
 		return self.title
@@ -253,5 +263,4 @@ class DictOutput(object):
 	
 	
 	tdict = property(get_tdict, set_tdict, None, None)
-	
 	

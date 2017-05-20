@@ -36,6 +36,8 @@ class CommandInterpreter(threading.Thread):
 		self.clinepos = 4
 		self.command = ""
 		self.context = "int" # context in which command is executed
+		self.postno_marked = None # Currently marked postno
+		
 		curses.curs_set(False)  # @UndefinedVariable
 		self.terminate = 0
 		self.dlog = DebugLog(self.wl)
@@ -140,11 +142,14 @@ class CommandInterpreter(threading.Thread):
 		
 		# restore position
 		#self.stdscr.move(y, x)
+		
+	def cstrout(self, text):
+		self.stdscr.addstr(self.screensize_x-1, self.clinepos, text)
+		self.clinepos = 4+len(text)
+
 
 	def cmd_history(self, count):
 		
-		self.dlog.msg("Command: " + str(self.command) + " Pos: " 
-					+ str(self.command_history_pos) + " cmdH: " + str(self.command_history))
 		try:
 			newPos = self.command_history_pos + count
 			if newPos >= 0 and newPos <= len(self.command_history):
@@ -161,8 +166,7 @@ class CommandInterpreter(threading.Thread):
 				self.clear_cmdinput("H")
 				self.clinepos = 4
 
-				self.stdscr.addstr(self.screensize_x-1, self.clinepos, self.command)
-				self.clinepos = 4+len(self.command)
+				self.cstrout(self.command)
 				
 
 				
@@ -358,6 +362,17 @@ class CommandInterpreter(threading.Thread):
 		else:
 			self.dlog.msg("Invalid command: " + self.command)
 		
+
+
+	def line_marked(self):
+		try:
+			postno = self.wl.get_active_window_ref().get_post_no_of_marked_line()
+			self.dlog.msg("Got postno: " + str(postno))
+			self.postno_marked = postno
+
+		except Exception as err:
+			print self.dlog.msg("CommandInterpreter.line_marked(): " + str(err))
+		
 	# Loop that refreshes on input
 	def run(self):
 		
@@ -452,7 +467,21 @@ class CommandInterpreter(threading.Thread):
 				#self.stdscr.addstr(self.screensize_x-1, 0, "[>] ")
 				self.clinepos = 4
 				self.command = "say "
+				
+				try:
+					if self.postno_marked is not None:
+						quote = ">>" + self.postno_marked + " "
+						self.command += quote
+						self.cstrout(quote)
+				except:
+					pass
+				
 				self.tmode = True
+				
+			# View image on selected post
+			elif c == u'v':
+				if self.postno_marked is not None:
+					self.wl.get_active_window_ref().show_image(self.postno_marked)
 				
 			# Scroll
 			elif c == 'KEY_HOME':
@@ -553,6 +582,13 @@ class CommandInterpreter(threading.Thread):
 					# Left mouse button clicked
 					elif int(bstate) == curses.BUTTON1_CLICKED:  # @UndefinedVariable
 						self.wl.get_active_window_ref().markline(y+1)
+						
+						# FIXME generalize for all pads
+						try: 
+							self.line_marked()
+						except:
+								pass
+						
 						pass
 						
 						
