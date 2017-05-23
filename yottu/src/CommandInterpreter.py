@@ -35,6 +35,8 @@ class CommandInterpreter(threading.Thread):
 		
 		self.cmode = False # command mode
 		self.tmode = False # talking mode (no need to prefix /say)
+		self.captcha_mask = False # Query captcha input
+		
 		self.clinepos = 4
 		self.command = ""
 		self.command_cached = None
@@ -146,14 +148,22 @@ class CommandInterpreter(threading.Thread):
 # 			self.dlog.msg("Could not restore window state: " + str(err))
 # 			pass
 
+	def query_captcha(self):
+		self.command = ""
+		self.clear_cmdinput("c")
+		self.cmode = True
+		self.cstrout("captcha ")
+
 	def clear_cmdinput(self, status_char):
 		# save current position 
 		#(y, x) = self.stdscr.getyx()
 		
 		# clear line
+		cmd_text = "[" + status_char + "] "
 		self.stdscr.move(self.screensize_x-1, 0)
 		self.stdscr.clrtoeol()
-		self.stdscr.addstr("[" + status_char + "] ")
+		self.stdscr.addstr(cmd_text)
+		self.clinepos = len(cmd_text)
 		
 		
 		# redraw active window
@@ -256,6 +266,7 @@ class CommandInterpreter(threading.Thread):
 			self.dlog.msg("Creating post on " + str(active_window.board) + "/"
 						+ str(active_thread_OP) + " | Comment: " + str(comment))
 			active_window.post(str(comment))
+			self.captcha_mask = True
 			
 
 		# /captcha: show (0 args) and solve captcha (>0 args)
@@ -469,6 +480,12 @@ class CommandInterpreter(threading.Thread):
 				if self.cmode:
 					curses.curs_set(True)  # @UndefinedVariable
 					
+				
+				if self.captcha_mask:
+					self.query_captcha()
+					self.captcha_mask = False
+					continue	
+				
 				#c = self.stdscr.getkey()
 				
 				inputstr = ''
