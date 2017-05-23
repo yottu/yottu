@@ -83,8 +83,6 @@ class Pad(object):
 	def set_auto_scroll(self, value):
 		self.__autoScroll = value
 		
-	def get_height(self):
-		return self.__height
 
 
 	def get_position(self):
@@ -156,11 +154,11 @@ class Pad(object):
 #		self.dlog.msg("Added " + str(curnewlines) + " Total: " + str(self.size) + " new lines for " + str(len(line)) + "c\n" )
 	
 	def get_post_no_of_marked_line(self):
+		y,x = self.save_position()
 		try:
 			if self.marked_line is not None:
 				
 				postno = ""
-				
 				for pos in range(6, 20):
 					char = chr(self.mypad.inch(self.marked_line, pos) & curses.A_CHARTEXT)  # @UndefinedVariable
 					
@@ -182,6 +180,8 @@ class Pad(object):
 		except Exception as err:
 			self.dlog.msg("Pad.get_postno_of_marked_line: " + str(err))
 			return None
+		finally:
+			self.restore_postion(y, x)
 		
 	
 	def reverseline(self, pos_y, mode=curses.A_STANDOUT):  # @UndefinedVariable
@@ -208,21 +208,26 @@ class Pad(object):
 	# FIXME: resizing messes up the position
 	def markline(self, pos_y):
 		try:
-			
+			self.screensize_y, self.screensize_x = self.stdscr.getmaxyx()
+
 			y, x = self.save_position()
 			
 			self.unmarkline()
 			previous_marked_line = self.marked_line
 			
-			# pos_y: absolute y-postion on screen
+			# pos_y: absolute y-postion on screen, value from curses.get_mouse()
 			# get_position(): position in virtual pad
 			# screensize_y: number of lines on screen
 			# unused_lines: lines the pad does not cover + 1 for command input
 			
-			unused_lines = 1
-			if self.size < self.screensize_y:
-				unused_lines = self.screensize_y - self.size -2
-			self.marked_line = pos_y + self.get_position() - self.screensize_y + unused_lines
+			unused_lines = 2
+			
+			#if self.size < self.screensize_y:
+			#	unused_lines = self.screensize_y - self.size -2
+				
+			self.marked_line = (pos_y - unused_lines) + (self.get_position() - self.screensize_y + 3)
+			# + self.get_position() - self.pposy + unused_lines
+			self.dlog.msg("ml: " + str(self.marked_line) + " = pos_y: " + str(pos_y) + " + pos(): " + str(self.get_position()) + " - ss_y: " + str(self.screensize_y) + " + 1")
 			
 			# Just unmark the pos_y if clicked twice
 			if previous_marked_line == self.marked_line:
@@ -273,4 +278,3 @@ class Pad(object):
 		self.stdscr.refresh()
 		
 	position = property(get_position, set_position, None, None)
-	height = property(get_height, None, None, None)

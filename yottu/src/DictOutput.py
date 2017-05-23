@@ -22,7 +22,7 @@ class DictOutput(object):
 		self.originalpost = {} # contains the OP post
 		self.thread = ""
 		self.nickname = "asdfasd"
-		self.title = u"yottu v0.1 - https://github.com/yottu/yottu - Init: <DictOutput>".encode('utf-8')
+		self.title = u"yottu v0.2 - https://github.com/yottu/yottu - Init: <DictOutput>".encode('utf-8')
 
 	def get_tdict(self):
 		return self.__tdict
@@ -230,7 +230,7 @@ class DictOutput(object):
 			try: 
 				self.title = self.originalpost['com']
 			except Exception as e:
-				self.title = "yottu v0.1 - https://github.com/yottu/yottu - <BoardPad>"
+				self.title = "yottu v0.2 - https://github.com/yottu/yottu - <BoardPad>"
 				debug.msg("Couldn't set title" + str(e) + "\n")
 				pass
 		

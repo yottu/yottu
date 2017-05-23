@@ -3,6 +3,8 @@ import json
 import DebugLog
 import socket
 import curses
+from StringIO import StringIO
+import gzip
 
 class Autism:
 	def __init__(self, board, threadno="catalog", domain="a.4cdn.org"):
@@ -45,6 +47,8 @@ class Autism:
 
 				
 				request = urllib2.Request(uri)
+				request.add_header('Accept-encoding', 'gzip')
+
 				socket.setdefaulttimeout(timeout) # TODO user setting
 			
 				if (self.lasttime != ""):
@@ -55,8 +59,12 @@ class Autism:
 				datastream = opener.open(request)
 				self.content = ""
 				while True:
+
 					data = datastream.read(chunkSize)
 					if not data:
+						if datastream.info().get('Content-Encoding') == 'gzip':
+							f = gzip.GzipFile(fileobj=StringIO(self.content))
+							self.content = f.read()
 						break
 					socket.setdefaulttimeout(timeout)
 					self.content += data
@@ -66,14 +74,16 @@ class Autism:
 						try: # TODO this should be in another class
 							screensize_x, screensize_y = self.stdscr.getmaxyx();
 							statusText = str((len(self.content)+len(data))/1024) + "K"
-							curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_GREEN)
-							self.stdscr.addstr(screensize_x-2, screensize_y-5-len(statusText), "GET: " + statusText, curses.color_pair(1))
+							curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_GREEN)  # @UndefinedVariable
+							self.stdscr.addstr(screensize_x-2, screensize_y-5-len(statusText), "GET: " + statusText, curses.color_pair(1))  # @UndefinedVariable
 							self.stdscr.refresh()
 						except:
 							continue
 						
 					self.dlog.msg("JsonFetcher: Retrieving thread " + self.threadno + " (" + str((len(self.content)+len(data))/1024) + "K)", 3)
 	
+
+					
 				self.jsoncontent = json.loads(self.content)
 				self.lasttime = datastream.headers.get('Last-Modified')
 			except urllib2.ssl.SSLError as e:

@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 '''
 Created on Oct 5, 2015
 
@@ -35,6 +37,7 @@ class CommandInterpreter(threading.Thread):
 		self.tmode = False # talking mode (no need to prefix /say)
 		self.clinepos = 4
 		self.command = ""
+		self.command_cached = None
 		self.context = "int" # context in which command is executed
 		self.postno_marked = None # Currently marked postno
 		
@@ -79,22 +82,39 @@ class CommandInterpreter(threading.Thread):
 		
 		
 	def on_resize(self):
-		self.stdscr.clear()
-		self.stdscr.refresh()
-		self.screensize_x, self.screensize_y = self.stdscr.getmaxyx();
-		self.wl.on_resize()
-		self.stdscr.addstr(self.screensize_x-1, 0, "[^] ")
+		try:
+			self.stdscr.clear()
+			self.stdscr.refresh()
+			self.screensize_x, self.screensize_y = self.stdscr.getmaxyx();
+			
+			self.wl.on_resize()
+	
+			self.stdscr.move(self.screensize_x-1, 0)
+			self.stdscr.clrtoeol()
+			if self.command != "":
+				if self.tmode:
+					self.stdscr.addstr(self.screensize_x-1, 0, "[>] " + self.command[4:])
+				elif self.cmode:
+					self.stdscr.addstr(self.screensize_x-1, 0, "[/] " + self.command)
+			else:
+				self.stdscr.addstr(self.screensize_x-1, 0, "[^] ")
+			self.stdscr.move(self.screensize_x-1, self.clinepos)
+		except Exception as err:
+			self.dlog.msg("CommandInterpreter.on_resize(): " + str(err))
+
 		
-	def cout(self, c):
-		self.stdscr.addstr(self.screensize_x-1, self.clinepos, c)
-		self.command += c
-		self.clinepos += 1
+
+		
+
 		
 	def parse_param(self, string):
 		''' return list from whitespace separated string '''
 		''' TODO: Implement validity matching logic '''
 		return string.split()
 	
+	def show_image_marked(self):
+		if self.postno_marked is not None:
+			self.wl.get_active_window_ref().show_image(self.postno_marked)
 
 	
 	# Save joined threads to file in order to restore on next start	
@@ -143,30 +163,55 @@ class CommandInterpreter(threading.Thread):
 		# restore position
 		#self.stdscr.move(y, x)
 		
+	def cout(self, c):
+		self.stdscr.addstr(self.screensize_x-1, self.clinepos, c)
+		self.command += c
+		self.clinepos += 1
+		
 	def cstrout(self, text):
 		self.stdscr.addstr(self.screensize_x-1, self.clinepos, text)
-		self.clinepos = 4+len(text)
+		self.command += text
+		self.clinepos += len(text)
 
 
 	def cmd_history(self, count):
+		''' output cmd from history and save position+count '''
+		
+		#self.dlog.msg(str(self.command_history))
+		
+		# cache unfinished command in buffer if history is searched while writing
+		if len(self.command) and (self.command_history_pos == len(self.command_history)):
+			#self.dlog.msg("Caching at pos " + str(self.command_history_pos) + " Command: " + self.command)
+			#self.dlog.msg("len of history: " + str(len(self.command_history)))
+			if self.command != "say ":
+				self.command_cached = self.command
+		
+		
 		
 		try:
 			newPos = self.command_history_pos + count
 			if newPos >= 0 and newPos <= len(self.command_history):
-				
+				self.command = ""
 				
 				self.command_history_pos += count
-				
+
+				# on end reached output cached command if it exists				
 				if newPos == len(self.command_history):
-					self.command = ""
+					if self.command_cached is not None:
+						cmd = self.command_cached
+						self.command_cached = None
+					else:
+						cmd = ""
+						
 				else:
-					self.command = self.command_history[self.command_history_pos]
+					cmd = self.command_history[self.command_history_pos]
 				
-				
-				self.clear_cmdinput("H")
+				self.clear_cmdinput(str(self.command_history_pos))
 				self.clinepos = 4
 
-				self.cstrout(self.command)
+				#cmd = self.command
+				#self.command = ""
+				self.cstrout(cmd)
 				
 
 				
@@ -204,11 +249,11 @@ class CommandInterpreter(threading.Thread):
 			# Check if executed on a BoardPad
 			active_window = self.wl.get_active_window_ref()
 			if not isinstance(active_window, BoardPad):
-				self.dlog.msg("/say must be used on a BoardPad, not " + str(active_window))
+				self.dlog.msg("/say must be used in a thread.")
 				return
 			
 			active_thread_OP = active_window.threadno
-			self.dlog.msg("Creating post on " + str(self.context) + "/"
+			self.dlog.msg("Creating post on " + str(active_window.board) + "/"
 						+ str(active_thread_OP) + " | Comment: " + str(comment))
 			active_window.post(str(comment))
 			
@@ -367,237 +412,324 @@ class CommandInterpreter(threading.Thread):
 	def line_marked(self):
 		try:
 			postno = self.wl.get_active_window_ref().get_post_no_of_marked_line()
-			self.dlog.msg("Got postno: " + str(postno))
+			self.dlog.msg("Got postno: " + str(postno), 5)
 			self.postno_marked = postno
 
 		except Exception as err:
-			print self.dlog.msg("CommandInterpreter.line_marked(): " + str(err))
-		
-	# Loop that refreshes on input
+			self.dlog.msg("CommandInterpreter.line_marked(): " + str(err))
+	
+	
 	def run(self):
-		
+		'''Loop that refreshes on input'''
 		# Enable mouse events
 		# TODO returns a 2-tuple with mouse capabilities that should be processed
 		curses.mousemask(-1)  # @UndefinedVariable
-		
-		while True:			
-				
-			if self.terminate is 1:
-				self.dlog.msg("CommandInterpreter: self.terminate is 1")
-				#self.save_state()
-				break
-			
-			
-			# moves cursor to current position 
-			#self.stdscr.move(self.screensize_x-1, self.clinepos)
-			if self.cmode:
-				curses.curs_set(True)  # @UndefinedVariable
-				
-			c = self.stdscr.getkey()
-			
-			if c == "KEY_RESIZE":
-				self.dlog.msg("CommandInterpreter: KEY_RESIZE")
-				self.on_resize()
-				continue
-			
-			if self.cmode:
-				curses.curs_set(True)  # @UndefinedVariable
 	
-			self.dlog.msg("getkey(): "+ c, 5)
-			#c = self.stdscr.getch()
+# 		while True:
+# 					#test
+# 			try:
+# 				inputstr = ''
+# 				self.stdscr.nodelay(0)
+# 				c = self.stdscr.getch()
+# 				self.dlog.msg("c: " + str(c))
+# 				self.stdscr.nodelay(1)
+# 				while True:
+# 					if c > 256:
+# 						curses.ungetch(c)
+# 						c = self.stdscr.getkey()
+# 						self.dlog.msg("c (getkey): " + str(c))
+# 						break
+# 					inputstr += chr(c)
+# 					c = self.stdscr.getch()
+# 					self.dlog.msg("also c: " + str(c))
+# 					self.dlog.msg("inputstr:  " + inputstr)
+# 					if c == -1:
+# 						break
+# 				
+# 			except Exception as err:
+# 				self.dlog.msg("Exception: " + str(err))
+# 				pass
 			
-			if self.cmode or self.tmode:
-				
-				if c == "KEY_BACKSPACE":
-					
-					# Delete last character after, len("[/] ") == 4 
-					if self.clinepos > 4:
-						self.command = self.command[:-1]
-						self.clinepos = self.clinepos - 1
-						self.stdscr.addstr(self.screensize_x-1, self.clinepos, " ")
-						self.stdscr.move(self.screensize_x-1, self.clinepos)
-						
-					continue
-				
-				if c == "KEY_UP":
-					self.cmd_history(-1)
-					continue
-						
-				if c == "KEY_DOWN":
-					self.cmd_history(1)
-					continue
-				
-				try:
-					if c == u'\n' or ord(c) == 27:
-						if c == u'\n':
-							# Only execute if command is not empty
-							if len(self.command) and self.command is not "say ":
-								self.exec_com()
-						self.cmode = False
-						self.tmode = False
-						self.command = ""
-						self.clear_cmdinput("^")
-						#self.stdscr.addstr(self.screensize_x-1, 0, "[T] ")
-						curses.curs_set(False)  # @UndefinedVariable
-						continue
-				except Exception as e:
-					self.dlog.excpt(e)
-					pass
-					
-				try:
-					self.cout(c)
-					continue
-				except:
-					pass
-						
-			# Quit application
-			if c == u'q':
-				self.terminate = 1
+			#self.dlog.msg("Char: " + str(len(c)))
+#			continue
 			
-			# Command input mode
-			elif c == u'/' or c == u'i':
-				self.clear_cmdinput("/")
-				#self.stdscr.addstr(self.screensize_x-1, 0, "[/] ")
-				self.clinepos = 4
-				self.cmode = True
-				
-			# Text input mode
-			elif c == u't':
-				self.clear_cmdinput(">")
-				#self.stdscr.addstr(self.screensize_x-1, 0, "[>] ")
-				self.clinepos = 4
-				self.command = "say "
-				
-				try:
-					if self.postno_marked is not None:
-						quote = ">>" + self.postno_marked + " "
-						self.command += quote
-						self.cstrout(quote)
-				except:
-					pass
-				
-				self.tmode = True
-				
-			# View image on selected post
-			elif c == u'v':
-				if self.postno_marked is not None:
-					self.wl.get_active_window_ref().show_image(self.postno_marked)
-				
-			# Scroll
-			elif c == 'KEY_HOME':
-				self.wl.home()
-			elif c == 'KEY_END':
-				self.wl.end()
-			elif c == 'KEY_PPAGE':
-				self.wl.moveup(5)
-			elif c == 'KEY_NPAGE':
-				self.wl.movedown(5)
-			elif c == 'KEY_UP' or c == u'w':
-				self.wl.moveup()
-			elif c == 'KEY_DOWN' or c == u's':
-				self.wl.movedown()
-				
-				
-			# change pad	
-			elif c == u'1':
-				try:
-					self.wl.raise_window(0)
-				except:
-					raise
-			elif c == u'2':
-				try:
-					self.wl.raise_window(1)
-				except:
-					raise
-			elif c == u'3':
-				try:
-					self.wl.raise_window(2)
-				except:
-					raise
-			elif c == u'4':
-				try:
-					self.wl.raise_window(3)
-				except:
-					raise
-			elif c == u'5':
-				try:
-					self.wl.raise_window(4)
-				except:
-					raise
-			elif c == u'6':
-				try:
-					self.wl.raise_window(5)
-				except:
-					raise
-			elif c == u'7':
-				try:
-					self.wl.raise_window(6)
-				except:
-					raise
-			elif c == u'8':
-				try:
-					self.wl.raise_window(7)
-				except:
-					raise
-			elif c == u'9':
-				try:
-					self.wl.raise_window(8)
-				except:
-					raise
-			elif c == u'0':
-				try:
-					self.wl.raise_window(9)
-				except:
-					raise
-			elif c == u'3':
-				try:
-					self.wl.raise_window(2)
-				except:
-					raise
-			elif c == u'n':
-				try:
-					self.wl.next() #TODO: implement in wl
-				except:
-					raise
-			elif c == u'p':
-				try:
-					self.wl.prev() #TODO: implement in wl
-				except:
-					raise
-			elif c == "KEY_MOUSE":
-				try:
-					(mid, x, y, z, bstate) = curses.getmouse()  # @UndefinedVariable
-					#bstate = curses.getmouse()[4]  # @UndefinedVariable
-					self.dlog.msg("getmouse(): id: "+ str(mid) +" x: "+str(x)+" y: "+str(y)+" z: "+str(z)+" bstate: "+ str(bstate), 5)
-					#self.stdscr.addstr(str(bstate))
+#			self.dlog.msg("I should not be here.")
+		
+		try:
+			while True:			
 					
-					# mouse wheel down
-					if int(bstate) == 134217728:
-						self.wl.movedown(5)
-						
-					# mouse wheel up (curses.BUTTON4_PRESSED)
-					elif int(bstate) == 524288:
-						self.wl.moveup(5)
+				if self.terminate is 1:
+					self.dlog.msg("CommandInterpreter: self.terminate is 1")
+					#self.save_state()
+					break
+				
+				
+				# moves cursor to current position 
+				#self.stdscr.move(self.screensize_x-1, self.clinepos)
+				if self.cmode:
+					curses.curs_set(True)  # @UndefinedVariable
 					
-					# Left mouse button clicked
-					elif int(bstate) == curses.BUTTON1_CLICKED:  # @UndefinedVariable
-						self.wl.get_active_window_ref().markline(y+1)
+				#c = self.stdscr.getkey()
+				
+				inputstr = ''
+				self.stdscr.nodelay(0)
+				c = self.stdscr.getch()
+				#self.dlog.msg("c: " + str(c))
+				self.stdscr.nodelay(1)
+				while True:
+					if c > 256:
+						curses.ungetch(c)  # @UndefinedVariable
+						c = self.stdscr.getkey()
+						#self.dlog.msg("c (getkey): " + str(c))
+						break
+					inputstr += chr(c)
+					c = self.stdscr.getch()
+					#self.dlog.msg("also c: " + str(c))
+					#self.dlog.msg("inputstr:  " + str(inputstr))
+					if c == -1:
+						break
+
+				if len(inputstr) == 1:
+					c = inputstr
+				#elif len(inputstr) > 1:
+				#	c = -2
+				
+				# Catch resize
+				if c == "KEY_RESIZE":
+					self.dlog.msg("CommandInterpreter: KEY_RESIZE")
+					self.on_resize()
+					continue
+				
+				# Scroll
+				elif c == 'KEY_HOME':
+					self.wl.home()
+					continue
+				elif c == 'KEY_END':
+					self.wl.end()
+					continue
+				elif c == 'KEY_PPAGE':
+					self.wl.moveup(5)
+					continue
+				elif c == 'KEY_NPAGE':
+					self.wl.movedown(5)
+					continue
+
+					
+				### Mouse control ###	
+				elif c == "KEY_MOUSE":
+					try:
+						# pointer id, x, y, unused, action
+						(mid, x, y, z, bstate) = curses.getmouse()  # @UndefinedVariable
+						#bstate = curses.getmouse()[4]  # @UndefinedVariable
+						self.dlog.msg("getmouse(): id: "+ str(mid) +" x: "+str(x)+" y: "+str(y)+" z: "+str(z)+" bstate: "+ str(bstate), 5)
+						#self.stdscr.addstr(str(bstate))
 						
-						# FIXME generalize for all pads
-						try: 
-							self.line_marked()
-						except:
-								pass
+						# Scroll on mouse wheel down
+						if int(bstate) == 134217728:
+							self.wl.movedown(5)
+							
+						# Scroll on mouse wheel up (curses.BUTTON4_PRESSED)
+						elif int(bstate) == 524288:
+							self.wl.moveup(5)
 						
+						# Left mouse button clicked (Mark line)
+						elif int(bstate) == curses.BUTTON1_CLICKED:  # @UndefinedVariable
+							self.wl.get_active_window_ref().markline(y+1)
+							
+							# FIXME generalize for all pads
+							try: 
+								self.line_marked()
+							except:
+									pass
+							
+							pass
+						
+						elif int(bstate) == curses.BUTTON3_CLICKED:  # @UndefinedVariable
+							self.show_image_marked()
+							
+					except Exception as err:
+						self.dlog.msg("CommandInterpreter -> c == KEY_MOUSE: ", + str(err))
 						pass
+					continue			
+				### End of mouse control ###
+				
+		
+				### Keys only valid in cmode ###
+				elif self.cmode or self.tmode:
+					curses.curs_set(True)  # @UndefinedVariable
+					
+					try:	
+						# Handle keycaps, FIXME: suppress output of C-M?
+						if re.match("^KEY_\w+$", c):
+							if c == "KEY_BACKSPACE":
+								
+								# Delete last character after, len("[/] ") == 4 
+								if self.clinepos > 4:
+									self.command = self.command[:-1]
+									self.clinepos = self.clinepos - 1
+									self.stdscr.addstr(self.screensize_x-1, self.clinepos, " ")
+									self.stdscr.move(self.screensize_x-1, self.clinepos)
+							
+							elif c == "KEY_UP":
+								self.cmd_history(-1)
+									
+							elif c == "KEY_DOWN":
+								self.cmd_history(1)
+								
+							continue
+					except:
+						pass
+					
+					# On Enter or ESC (27)
+					try:
+						# Need to avoid the Exception for long unicode strings
+						if len(inputstr) == 1 and c != -1 and (c == u'\n' or ord(c) == 27):
+							if c == u'\n':
+								# Only execute if command is not empty
+								if len(self.command) and self.command is not "say ":
+									self.exec_com()
+
 						
+							# reset history position counter
+							self.command_history_pos = len(self.command_history)
+							self.command_cached = None		
+							self.cmode = False
+							self.tmode = False
+							self.command = ""
+							self.clear_cmdinput("^")
+							#self.stdscr.addstr(self.screensize_x-1, 0, "[T] ")
+							curses.curs_set(False)  # @UndefinedVariable
+
+						# If user input is not \n or ESC write it to command bar
+						else:
+							if c != -1:
+								self.cout(c)
+								
+							else:
+								self.cstrout(inputstr)
+							
 						
-				except Exception as err:
-					self.dlog.msg("CommandInterpreter -> c == KEY_MOUSE: ", + str(err))
-					pass
-			
-			else:
-				self.dlog.msg("Unbound key: " + str(c))
-	#				mypad.refresh(padl, padr, padu, padd, pheight, pwidth)
-			#elif c == curses.BUTTON5_PRESSED:
-			#	padl += 15
+					except Exception as e:
+						self.dlog.excpt(e)
+					
+					continue
+				### End of cmode input ###
+				
+				elif c == 'KEY_UP':
+					self.wl.moveup()
+				
+				elif c == 'KEY_DOWN':
+					self.wl.movedown()
+							
+				# Quit application
+				elif c == u'q':
+					self.terminate = 1
+				
+				# Command input mode
+				elif c == u'/' or c == u'i':
+					self.clear_cmdinput("/")
+					#self.stdscr.addstr(self.screensize_x-1, 0, "[/] ")
+					self.clinepos = 4
+					self.cmode = True
+					
+				# Text input mode
+				elif c == u't':
+					self.clear_cmdinput(">")
+					#self.stdscr.addstr(self.screensize_x-1, 0, "[>] ")
+					self.clinepos = 4
+					self.command = "say "
+					
+					try:
+						if self.postno_marked is not None:
+							quote = ">>" + self.postno_marked + " "
+							self.cstrout(quote)
+					except:
+						pass
+					
+					self.tmode = True
+					
+				# View image on selected post
+				elif c == u'v':
+					self.show_image_marked()
+					
+				
+				elif c == u'w':
+					self.wl.moveup()
+				elif c == u's':
+					self.wl.movedown()
+					
+					
+				# change pad	
+				elif c == u'1':
+					try:
+						self.wl.raise_window(0)
+					except:
+						raise
+				elif c == u'2':
+					try:
+						self.wl.raise_window(1)
+					except:
+						raise
+				elif c == u'3':
+					try:
+						self.wl.raise_window(2)
+					except:
+						raise
+				elif c == u'4':
+					try:
+						self.wl.raise_window(3)
+					except:
+						raise
+				elif c == u'5':
+					try:
+						self.wl.raise_window(4)
+					except:
+						raise
+				elif c == u'6':
+					try:
+						self.wl.raise_window(5)
+					except:
+						raise
+				elif c == u'7':
+					try:
+						self.wl.raise_window(6)
+					except:
+						raise
+				elif c == u'8':
+					try:
+						self.wl.raise_window(7)
+					except:
+						raise
+				elif c == u'9':
+					try:
+						self.wl.raise_window(8)
+					except:
+						raise
+				elif c == u'0':
+					try:
+						self.wl.raise_window(9)
+					except:
+						raise
+				elif c == u'3':
+					try:
+						self.wl.raise_window(2)
+					except:
+						raise
+				elif c == u'n':
+					try:
+						self.wl.next() #TODO: implement in wl
+					except:
+						raise
+				elif c == u'p':
+					try:
+						self.wl.prev() #TODO: implement in wl
+					except:
+						raise
+				
+				else:
+					#self.dlog.msg("Unbound key: " + str(c))
+					continue
+				
+		except Exception as err:
+			self.dlog.msg("CommandInterpreter.run(): " + str(err))		
+	# End of run loop

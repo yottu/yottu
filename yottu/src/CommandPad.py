@@ -41,7 +41,7 @@ class CommandPad(Pad):
 		self.addstr("\ \ / /__| |_| |_ _  _\n")
 		self.addstr(" \ V / _ \  _|  _| || |\n")
 		self.addstr("  |_|\___/\__|\__|\_,_|\n")
-		self.addstr("Yottu v.0.1 - https://github.com/yottu/yottu\n", curses.A_BOLD)
+		self.addstr("Yottu v0.2 - https://github.com/yottu/yottu\n", curses.A_BOLD)
 		self.addstr("\n")
 		self.addstr("Set board context: /board <board>\n")
 		self.addstr("Display Threads in current board context: /list <board> [not implemented]\n")

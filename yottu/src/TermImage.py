@@ -1,7 +1,7 @@
 '''
 Created on May 15, 2017
 
-@author: yottu-dev@gmail.com
+@author: yottudev@gmail.com
 '''
 from subprocess import call
 import subprocess
