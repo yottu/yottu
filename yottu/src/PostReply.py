@@ -4,10 +4,11 @@ Created on May 15, 2017
 @author: yottudev@gmail.com
 '''
         
+import re
 import urllib
 import urllib2
 from bs4 import BeautifulSoup
-import requests
+import requests # FIXME use either urllib or requests, what is best for python 2 and 3?
 from TermImage import TermImage
 
 import warnings
@@ -30,6 +31,10 @@ class PostReply(object):
         self.captcha_image_filename = "yottu-captcha.jpg"
 
         self.captcha_solution = ""
+        
+    class PostError(Exception):
+        def __init__(self,*args,**kwargs):
+            Exception.__init__(self,*args,**kwargs)
 
     def get_captcha_solution(self):
         return self.__captcha_solution
@@ -62,18 +67,18 @@ class PostReply(object):
         captcha_image_source = soup.img.get('src')
         captcha_image_url = self.captcha_image_base_url + captcha_image_source
 
-        # Get captcha image 
+        # Get captcha image
         urllib.urlretrieve(captcha_image_url, self.captcha_image_filename)
 
         #self.save_image(self.captcha_image)
         #self.display_captcha()
+            
         
     def save_image(self, filename):
         """save image to file system"""
         
-        f = open(filename, "w")
-        f.write(self.captcha_image)
-        f.close()
+        with open(filename, "w") as f:
+            f.write(self.captcha_image)
 
     def display_captcha(self):
         try:
@@ -82,9 +87,10 @@ class PostReply(object):
         except:
             raise
 
-    def post(self, comment="", subject="", file=""):
+    def post(self, comment="", subject="", file_attach=""):
 
         url = "https://sys.4chan.org/" + self.board + "/post"
+        #url = 'http://httpbin.org/status/404'
         #url = "http://localhost/" + self.board + "/post"
         #url = 'http://httpbin.org/post'
         #url = "https://requestb.in/zzuhovzz"
@@ -105,8 +111,15 @@ class PostReply(object):
         
         headers = { 'User-Agent' : 'Mozilla/5.0 (X11; Linux x86_64)' }
         
-        session = requests.session()
+#        session = requests.session()
         response = requests.post(url, headers=headers, files=values) 
+        
+        # raise exception on error code
+        response.raise_for_status()
+        if re.search("is_error = \"true\"", response.text):
+            perror = re.search(r"Error: ([A-Za-z.,]\w*\s*)+", response.text).group(0)
+            raise PostReply.PostError(perror)
+        
         return response
     
     captcha_solution = property(get_captcha_solution, set_captcha_solution, None, None)

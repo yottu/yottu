@@ -7,7 +7,7 @@ from ThreadFetcher import ThreadFetcher
 from PostReply import PostReply
 from DebugLog import DebugLog
 from TermImage import TermImage
-import urllib
+from Autism import Autism
 
 class BoardPad(Pad):
 	'''
@@ -22,7 +22,20 @@ class BoardPad(Pad):
 		self.postReply = None
 		self.comment = ""
 		self.tdict = {}
+		self.contentFetcher = None
 		self.dlog = DebugLog(self)
+		
+	class NoDictError(Exception):
+		def __init__(self,*args,**kwargs):
+			Exception.__init__(self,*args,**kwargs)
+
+	def get_comment(self):
+		return self.__comment
+
+
+	def set_comment(self, value):
+		self.__comment = value
+
 
 	def get_tdict(self):
 		return self.__tdict
@@ -65,46 +78,97 @@ class BoardPad(Pad):
 		self.board = board
 		self.threadno = threadno
 		self.nickname = nickname
+		
+		self.contentFetcher = Autism(self.board, self.threadno)
+		self.contentFetcher.setstdscr(self.stdscr)
+		
 		self.threadFetcher = ThreadFetcher(self.threadno, self.stdscr, self.board, self, self.nickname)
 		self.threadFetcher.setDaemon(True)
 		self.threadFetcher.start()
+		
 		self.postReply = PostReply(self.board, self.threadno)
 		
-	def post(self, comment):
+	def post_prepare(self, comment):
 		self.comment = comment
+		self.get_captcha()
+		
+	def get_captcha(self):
 		self.postReply.get_captcha_challenge()
 		self.display_captcha()
 			
 		
 	def set_captcha(self, captcha):
 		self.postReply.set_captcha_solution(captcha)
-		self.postReply.post(self.comment)
+		
+	def post_submit(self):
+		if self.comment:
+			response = self.postReply.post(self.comment)
+			return response
+			
+			
+	def update_thread(self):
+		''' update (fetch) thread immediately '''
 		self.threadFetcher.update()
 		
+	def show_image_thumb(self, postno):
+		self.show_image(postno, False, [], True)
 		
-		# FIXME needs cleaning up and putting things in the right classes etc
-	def show_image(self, postno):
+	def show_image(self, postno, use_external_image_viewer=False, options=[], thumb=False):
 		try:
 			postno = int(postno)
-			img_ext =  str(self.get_tdict()[postno]['ext'])
-			img_filename = str(self.get_tdict()[postno]['tim']) + img_ext
-			img_filename_thumb = str(self.get_tdict()[postno]['tim']) + "s.jpg"
-			self.dlog.msg("Namely: " + str(img_filename) )
-		except Exception as err: 
-			self.dlog.msg("Exception in assembling file name: " + str(err))
-
+			if not self.tdict:
+				raise self.NoDictError("BoardPad has no thread dictionary.")
 			
+			img_ext =  str(self.get_tdict()[postno]['ext']) # image extension, eg ".jpg"
+			img_tim = str(self.get_tdict()[postno]['tim'])  # Actual filename as saved on server
+			
+			# Return if post has no image attached
+			if not img_ext or not img_tim:
+				return None
+			
+		except Exception as err: 
+			self.dlog.msg("BoardPad: Exception in assembling file name: " + str(err))
+			raise
+		
+		# Convert to lower case for later comparison
+		img_store_ext = img_ext.lower()
+		
+		if thumb:
+			img_store_filename = self.board + "-" + img_tim[:64] + "s.jpg"
+		else:
+			img_store_filename = self.board + "-" + img_tim[:64] + img_store_ext
+		
 		try:
-			urllib.urlretrieve("https://i.4cdn.org/"+self.board+ "/"+img_filename, "yottu-image" + img_ext)
-		except Exception as err:
-			self.dlog.msg("E: " + str(err))
+			if thumb:
+				self.contentFetcher.save_image(str(img_tim+"s.jpg"), img_store_filename)
+			else:
+				self.contentFetcher.save_image(str(img_tim+img_ext), img_store_filename)
+		except:
+			raise
+		
 		try:
-			TermImage.display("yottu-image" + img_ext)
+			#yottu_image = "yottu-image" + img_ext
+			if use_external_image_viewer is True:
+				if img_ext == ".jpg" or img_ext == ".png":
+					TermImage.display_feh(img_store_filename, options, "./cache/")
+				elif img_ext == ".gif":
+					self.dlog.msg("No gif viewer configured.")
+				elif img_ext == ".webm":
+					# FIXME use fbdev and redirect output to /dev/null
+					#TermImage.display_mpv(img_store_filename, [], "./cache/")
+					self.dlog.msg("No webm viewer configured.")
+			else:
+				if img_ext == ".jpg" or img_ext == ".png" or img_ext == ".gif":
+					TermImage.display(img_store_filename, "./cache/")
+				else:
+#					self.statusbar.msg("File not viewable.")
+					self.dlog.msg(img_ext + " file not viewable.")
 		except Exception as err:
 			self.dlog.msg("Exception in TermImage call: " + str(err))
 			
 			
 	
 	tdict = property(get_tdict, set_tdict, None, None)
+	comment = property(get_comment, set_comment, None, None)
 		
 	

@@ -114,9 +114,15 @@ class CommandInterpreter(threading.Thread):
 		''' TODO: Implement validity matching logic '''
 		return string.split()
 	
-	def show_image_marked(self):
-		if self.postno_marked is not None:
-			self.wl.get_active_window_ref().show_image(self.postno_marked)
+	def show_image_marked(self, ext=False, options=[]):
+		try:
+			if self.postno_marked:
+				if ext is True:
+					self.wl.get_active_window_ref().show_image(self.postno_marked, True, options)
+				else:
+					self.wl.get_active_window_ref().show_image(self.postno_marked)
+		except Exception as err:
+			self.dlog.msg("CommandInterpreter.show_image_marked(): " + str(err))
 
 	
 	# Save joined threads to file in order to restore on next start	
@@ -265,8 +271,12 @@ class CommandInterpreter(threading.Thread):
 			active_thread_OP = active_window.threadno
 			self.dlog.msg("Creating post on " + str(active_window.board) + "/"
 						+ str(active_thread_OP) + " | Comment: " + str(comment))
-			active_window.post(str(comment))
-			self.captcha_mask = True
+			try:
+				active_window.post_prepare(str(comment))
+				self.captcha_mask = True
+			except Exception as err:
+				self.dlog.msg("CommandInterpreter: BoardPad.set_captcha(): " + str(err))
+
 			
 
 		# /captcha: show (0 args) and solve captcha (>0 args)
@@ -276,12 +286,9 @@ class CommandInterpreter(threading.Thread):
 			
 			try:
 				if len(cmd_args) == 1:
-					try:
-						active_window.display_captcha()
-						return
-					except Exception as err:
-						self.dlog.msg("Can't display captcha: " + str(err))
-						return
+					active_window.display_captcha()
+					return
+
 			except Exception as err:
 				self.dlog.msg("Can't display captcha: " + str(err))
 				return
@@ -292,9 +299,14 @@ class CommandInterpreter(threading.Thread):
 				cmd_args.pop(0)
 				captcha = " ".join(cmd_args)
 				active_window.set_captcha(str(captcha))
+				active_window.post_submit()
+				active_window.update_thread()
 			except Exception as err:
 				self.dlog.msg("Can't submit captcha: " + str(err))
-				pass
+				curses.ungetch('/')  # @UndefinedVariable
+				#self.cmode
+				#self.cmd_history(-1)
+				return
 			
 		elif re.match("autojoin", self.command):
 			try:
@@ -423,8 +435,12 @@ class CommandInterpreter(threading.Thread):
 	def line_marked(self):
 		try:
 			postno = self.wl.get_active_window_ref().get_post_no_of_marked_line()
-			self.dlog.msg("Got postno: " + str(postno), 5)
+			
+			# FIXME postno_marked should be an attribute of bp
 			self.postno_marked = postno
+			if postno:
+				self.wl.get_active_window_ref().show_image_thumb(self.postno_marked)
+			
 
 		except Exception as err:
 			self.dlog.msg("CommandInterpreter.line_marked(): " + str(err))
@@ -543,11 +559,17 @@ class CommandInterpreter(threading.Thread):
 						
 						# Scroll on mouse wheel down
 						if int(bstate) == 134217728:
-							self.wl.movedown(5)
+							if y == 0:
+								self.wl.next()
+							else:
+								self.wl.movedown(5)
 							
 						# Scroll on mouse wheel up (curses.BUTTON4_PRESSED)
 						elif int(bstate) == 524288:
-							self.wl.moveup(5)
+							if y == 0:
+								self.wl.prev()
+							else:
+								self.wl.moveup(5)
 						
 						# Left mouse button clicked (Mark line)
 						elif int(bstate) == curses.BUTTON1_CLICKED:  # @UndefinedVariable
@@ -665,15 +687,26 @@ class CommandInterpreter(threading.Thread):
 					
 					self.tmode = True
 					
-				# View image on selected post
+				# View image on selected post using w3mimg
 				elif c == u'v':
 					self.show_image_marked()
-					
+				elif c == u'f':
+					# View image in external viewer
+					self.show_image_marked(True)
+				elif c == u'F':
+					self.show_image_marked(True, ['--fullscreen'])
 				
 				elif c == u'w':
 					self.wl.moveup()
 				elif c == u's':
 					self.wl.movedown()
+				
+				# Refresh thread	
+				elif c == u'r':
+					try:
+						self.wl.get_active_window_ref().update_thread()
+					except:
+						continue
 					
 					
 				# change pad	
@@ -748,5 +781,6 @@ class CommandInterpreter(threading.Thread):
 					continue
 				
 		except Exception as err:
-			self.dlog.msg("CommandInterpreter.run(): " + str(err))		
+			self.dlog.msg("CommandInterpreter.run(): " + str(err))
+			pass
 	# End of run loop

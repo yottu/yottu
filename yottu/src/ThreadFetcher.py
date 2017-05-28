@@ -11,6 +11,7 @@ import time
 import threading
 from Titlebar import Titlebar
 from DebugLog import DebugLog
+import urllib2
 
 class ThreadFetcher(threading.Thread):
 	def __init__(self, threadno, stdscr, board, bp, nickname):
@@ -64,19 +65,22 @@ class ThreadFetcher(threading.Thread):
 			getThread = Autism(self.board, self.threadno)
 		except Exception as e:
 			dlog.excpt(e)
-			self.stdscr.addstr(0, 0, str(e), curses.A_REVERSE)
+			self.stdscr.addstr(0, 0, str(e), curses.A_REVERSE)  # @UndefinedVariable
 			self.stdscr.refresh()
 				
-		self.tb.draw()
 		
 		while True:
 			
-			dlog.msg("ThreadFetcher: Fetching for /" + self.board + "/" + self.threadno, 3)
+			dlog.msg("ThreadFetcher: Fetching for /" + self.board + "/" + self.threadno, 5)
 			
 			# leave update loop if stop is set
 			if self._stop.is_set():
 				dlog.msg("ThreadFetcher: Stop signal for /" + self.board + "/" + self.threadno, 3)
 				break
+			
+			# Wait for a short time before updating
+			if self._update.is_set():
+				time.sleep(1)
 	
 			try:
 				getThread.setstdscr(self.stdscr)
@@ -84,13 +88,29 @@ class ThreadFetcher(threading.Thread):
 				thread = getattr(getThread, "jsoncontent")
 				self.dictOutput.refresh(thread)
 				self.bp.set_tdict(self.dictOutput.get_tdict())
-				self.tb.set_title(self.dictOutput.getTitle())
+				
+				if self._active:
+					self.tb.set_title(self.dictOutput.getTitle())
+				if self.update > 9:
+					self.update_n = 9
+				elif self.update > 3:
+					self.update -= 1
+				
+			except urllib2.HTTPError as e:
+				if e.code == 404:
+					self.sb.setStatus(str(e))
+					dlog.excpt(e)
+					break
+				if e.code == 304:
+					self.sb.setStatus(str(e.code))
+					if self.update_n < 20:
+						self.update_n += 1
 			except Exception as e:
 				self.sb.setStatus(str(e))
 				dlog.excpt(e)
 				pass
 				
-			for update_n in range (9, -1, -1):
+			for update_n in range (self.update_n, -1, -1):
 				
 				# Leave countdown loop if stop is set
 				if self._stop.is_set():
@@ -110,5 +130,9 @@ class ThreadFetcher(threading.Thread):
 				
 
 				time.sleep(1)
+				
+		# End of thread loop
+				
+		dlog.msg("ThreadFetcher: Leaving /" + self.board + "/" + self.threadno, 3)
 				
 	tdict = property(get_tdict, set_tdict, None, None)

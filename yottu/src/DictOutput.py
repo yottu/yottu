@@ -109,7 +109,7 @@ class DictOutput(object):
 				#com = re.sub('&quot;', '"', com)
 				#com = re.sub('<[^<]+?>', '', com)
 				com = self.clean_html(com)
-			except: com = "[File only]"
+			except: com = "[File only]"  # @UndefinedVariable
 			try:
 				trip = posts['trip']
 			except:
@@ -125,9 +125,10 @@ class DictOutput(object):
 				tim = ""
 			try:
 				ext = self.clean_html(posts['ext'])
+				file_ext_short = ext[1:2].upper()
 			except:
 				ext = ""
-	
+				file_ext_short = " "
 	
 	
 			self.tdict[no] = {'country':country, 'name':name, 'time':time,
@@ -143,30 +144,35 @@ class DictOutput(object):
 			# FIXME this entire block should be in its own class			
 			try:
 				
+
+				
 				# Write [TIME] <Name>
 				self.bp.addstr("", curses.color_pair(color))  # @UndefinedVariable
 				self.bp.addstr(time)
 				
 				self.bp.addstr(" >>" + str(no), curses.color_pair(color))  # @UndefinedVariable
+				
 
 					
 				# Add country code	
 				self.bp.addstr(" " + country)
+				
+				# Count of characters that are in every new BoardPad line (for indentation on nl in bp)
+				indent = len(time)+len(str(no))+len(country)+4
 	
 				# Make own nickname bold
 				if re.match(self.nickname, name) is not None:
-					self.bp.addstr(" <" + self.nickname + "> ", curses.A_BOLD)  # @UndefinedVariable
+					self.bp.addstr(" < " + self.nickname + "> ", curses.A_BOLD)  # @UndefinedVariable
 	
-				# Make name decoration bold if file is attached
+				# Make name decoration stand out if file is attached
 				else:
-					if filename:
-						self.bp.addstr(" <", curses.A_BOLD)  # @UndefinedVariable
-						self.bp.addstr(name.encode('utf8'))
-						self.bp.addstr("> ", curses.A_BOLD)  # @UndefinedVariable
-					else:
-						self.bp.addstr(" <" + name.encode('utf8') + "> ")
-				#self.bp.addstr(com.encode('utf8'))
+					self.bp.addstr(" <", curses.color_pair(240))  # @UndefinedVariable
+					self.bp.addstr(file_ext_short, curses.color_pair(240) | curses.A_BOLD)  # @UndefinedVariable
+					self.bp.addstr(name.encode('utf8'), curses.A_DIM)  # @UndefinedVariable
+					self.bp.addstr("> ", curses.color_pair(240))  # @UndefinedVariable
 				
+				# width of name including unicode east asian characters + len("<  > ") == 5	
+				indent += self.bp.calcline(name.encode('utf8'))+5
 				
 				comlist = com.split()
 				
@@ -187,42 +193,43 @@ class DictOutput(object):
 						# refposts contains all >>(\d+) in a comment
 						if word not in refposts:
 							# Output non-reference
-							self.bp.addstr(u''.join((word + " ")).encode('utf8'))
-							
+							self.bp.addstr(u''.join((word + " ")).encode('utf8'), curses.A_NORMAL, indent)  # @UndefinedVariable
 						# Handle references (>>(\d+))	
 						else:
 							
 							# Comment and reference color encoding
 							try:
 								refcolor = self.tdict[int(word)]['color']
-								self.bp.addstr(">>" + word + " ", curses.color_pair(refcolor))  # @UndefinedVariable
+								self.bp.addstr(">>" + word + " ", curses.color_pair(refcolor), indent)  # @UndefinedVariable
 								
 								# Add (You) to referenced posts written by self.nickname
 								if re.match(self.tdict[int(word)]['name'], self.nickname):
-									self.bp.addstr("(You) ", curses.A_BOLD | curses.color_pair(221))  # @UndefinedVariable
+									self.bp.addstr("(You) ", curses.A_BOLD | curses.color_pair(221), indent)  # @UndefinedVariable
 									try:
 										Notifier.send(name, com)
 									except:
+										raise
 										pass
 									
 								# highlight OP reference
 								if re.match(word, str(self.originalpost['no'])):
 									try:
-										self.bp.addstr("(OP) ", curses.A_BOLD | curses.color_pair(197))  # @UndefinedVariable
+										self.bp.addstr("(OP) ", curses.A_BOLD | curses.color_pair(197), indent)  # @UndefinedVariable
 									except:
+										raise
 										pass
 
 							except Exception as e:
-								debug.msg("DictOutput: " + str(e))
-								self.bp.addstr(word)
+								#debug.msg("DictOutput: " + str(e))
+								self.bp.addstr(word + " ", curses.A_DIM, indent)  # @UndefinedVariable
 								pass
 								
 				except:
-					self.bp.addstr("[File only]")
+					self.bp.addstr("[File only]", curses.A_DIM, indent)  # @UndefinedVariable
 			except:
 				raise
 	
-			self.bp.addstr("\n")
+			self.bp.addstr("\n", curses.A_NORMAL, indent)  # @UndefinedVariable
 			
 		try:
 			self.title = self.originalpost['sub']

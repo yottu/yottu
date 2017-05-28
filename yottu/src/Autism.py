@@ -3,8 +3,10 @@ import json
 import DebugLog
 import socket
 import curses
+import os
 from StringIO import StringIO
 import gzip
+from urllib2 import HTTPError
 
 class Autism:
 	def __init__(self, board, threadno="catalog", domain="a.4cdn.org"):
@@ -13,8 +15,8 @@ class Autism:
 		self.threadno = threadno
 		self.jsoncontent = ""
 		self.lasttime = ""
-		self.content = ""
 		self.dlog = DebugLog.DebugLog()
+		self.stdscr = None
 
 	@property
 	def jsoncontent(self):
@@ -28,22 +30,30 @@ class Autism:
 	def jsoncontent(self):
 		del self.jsoncontent
 	
-	# source = ["board", "catalog"]
-	def _query(self, source):
+	# source can be "board" or "catalog" or "image"
+	def _query(self, source, image_filename=None):
+		''' Returns datastream of a url generated from its context '''
 		chunkSize = 4096
 		for i in range(1, 10):
 			try:
 				timeout = 300*i
+				
+				domain = self.domain
 				
 				# Build uri path for thread or catalog
 				if source == "board":
 					path = "/" + self.board + "/thread/" + self.threadno + ".json"
 				elif source == "catalog":
 					path = "/" + self.board + "/catalog.json"
+				elif source == "image":
+					domain = "i.4cdn.org"
+					path = "/" + self.board + "/" + image_filename
+				else:
+					return None
 					
-				uri = "http://" + self.domain + path # TODO user setting for http/https
+				uri = "http://" + domain + path # TODO user setting for http/https
 				
-				self.dlog.msg("JsonFetcher: In _query for " + uri, 3)
+				self.dlog.msg("JsonFetcher: In _query for " + uri, 5)
 
 				
 				request = urllib2.Request(uri)
@@ -54,52 +64,74 @@ class Autism:
 				if (self.lasttime != ""):
 					request.add_header('If-Modified-Since', self.lasttime)
 				
-				# Fetch data and store into self.content
+				# Fetch data and store into content
 				opener = urllib2.build_opener()
 				datastream = opener.open(request)
-				self.content = ""
+				content = ""
 				while True:
 
 					data = datastream.read(chunkSize)
 					if not data:
 						if datastream.info().get('Content-Encoding') == 'gzip':
-							f = gzip.GzipFile(fileobj=StringIO(self.content))
-							self.content = f.read()
+							f = gzip.GzipFile(fileobj=StringIO(content))
+							content = f.read()
 						break
 					socket.setdefaulttimeout(timeout)
-					self.content += data
+					content += data
 					
 					# Show thread download progress in statusbar 
 					if self.stdscr:
-						try: # TODO this should be in another class
+						try:
 							screensize_x, screensize_y = self.stdscr.getmaxyx();
-							statusText = str((len(self.content)+len(data))/1024) + "K"
+							statusText = source.upper() + "-GET: " + str((len(content)+len(data))/1024) + "K"
 							curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_GREEN)  # @UndefinedVariable
-							self.stdscr.addstr(screensize_x-2, screensize_y-5-len(statusText), "GET: " + statusText, curses.color_pair(1))  # @UndefinedVariable
+							sb_progress = ""
+							self.stdscr.addstr(screensize_x-2, screensize_y-2-len(statusText), statusText, curses.color_pair(1))  # @UndefinedVariable
 							self.stdscr.refresh()
 						except:
 							continue
 						
-					self.dlog.msg("JsonFetcher: Retrieving thread " + self.threadno + " (" + str((len(self.content)+len(data))/1024) + "K)", 3)
-	
-
+					#self.dlog.msg("ContentFetcher: Data transmission from >>>/" + self.board + "/" + self.threadno + "/ (" + str((len(content)+len(data))/1024) + "K)", 3)
 					
-				self.jsoncontent = json.loads(self.content)
-				self.lasttime = datastream.headers.get('Last-Modified')
+				if source == "board":
+					self.lasttime = datastream.headers.get('Last-Modified')
+				
+				return content
+			
 			except urllib2.ssl.SSLError as e:
 				self.dlog.msg(str(e) + " New timeout: " + str(timeout))
 				continue
+			except urllib2.HTTPError:
+					raise
 			except Exception:
 				raise
 			break
+		
+	def save_image(self, filename, target_filename):
+		try:
+			target_path = "./cache/"
+			
+			# Create path if it doesn't exist
+			if not os.path.isdir(target_path):
+				os.makedirs(target_path)
+				
+			# Fetch and write image if it doesn't already exist	
+			if not os.path.exists(target_path + target_filename):
+				imagedata = self._query("image", filename)
+				with open(target_path + target_filename, "wb") as f:
+					f.write(imagedata)
+		except:
+			raise
+		
 		
 	def post(self, comment):
 		pass
 
 
-			
+	# FIXME just return the content
 	def get(self, source="board"):
-		self._query(source)
+		content = self._query(source)
+		self.jsoncontent = json.loads(content)
 		
 	def setstdscr(self, stdscr):
 		self.stdscr = stdscr

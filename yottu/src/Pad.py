@@ -8,7 +8,6 @@ from __future__ import division
 import curses
 import unicodedata
 from DebugLog import DebugLog
-import math
 import re
 
 class Pad(object):
@@ -29,7 +28,6 @@ class Pad(object):
 		
 		self.padr = 0; self.padu = 0; self.padd = 0
 		self.mypad.refresh(0, self.padr, self.padu, self.padd, self.pheight, self.pwidth)
-		
 		
 		# count new lines added by this function for autoscrolling
 		(self.pposy, self.pposx) = self.mypad.getyx()
@@ -78,8 +76,72 @@ class Pad(object):
 		self.actualpmaxy = self.pmaxy-Pad.padbuffersize
 		self.draw()
 		
-		
+	
+	def addstr(self, string, options=curses.A_NORMAL, indent=0):  # @UndefinedVariable
+		try:
+			
+			# check if comment needs to be line wrapped, indent it if so
+			if indent:
+				stringpos = 0
+				
+				# iterate over every character, note that BoardPad sends a string
+				# for every word delimited by a space
+				for character in string:
+					(self.pposy, self.pposx) = self.mypad.getyx()
+					
+					# wrap oversized word at the end of the line if it fits in one line
+					if stringpos == 0:
+						space_needed = self.pposx + len(string)
+						indented_space = self.pmaxx - indent
 
+						if space_needed > self.pwidth and len(string) < indented_space:
+							self.mypad.addstr("\n")
+							
+							#self.line += u"\n".decode('utf-8')
+							(self.pposy, self.pposx) = self.mypad.getyx()
+							self.size = self.pposy
+					
+					# indent after line wrap		
+					if self.pposx == 0:
+						self.mypad.addstr(" "*indent)
+						
+					# output the character and adjust the pad size
+					self.mypad.addstr(character, options)
+					(self.pposy, self.pposx) = self.mypad.getyx()
+					self.size = self.pposy
+					
+					stringpos += 1
+			
+			# add string to current position		
+			else:
+				self.mypad.addstr(string, options)
+				(self.pposy, self.pposx) = self.mypad.getyx()
+				self.size = self.pposy
+		except Exception as err:
+			self.dlog.msg("Pad.addstr(): " + str(err))
+			
+		
+		if re.search(r'\n', string):
+			self.auto_scroll()
+		
+	def calcline(self, line):
+		''' returns the width of an unicode string '''
+		lineLength = 0
+		
+		try:
+			for letter in line.decode('utf-8'):
+				lineLength += 1
+				
+				# Wide unicode takes two spaces
+				if unicodedata.east_asian_width(letter) is 'W':
+					lineLength +=1
+					
+		except Exception as err:
+			self.dlog.msg("Pad.calcline(): " + str(err))	
+			
+		finally:	
+			return lineLength
+	
 	def set_auto_scroll(self, value):
 		self.__autoScroll = value
 		
@@ -139,19 +201,7 @@ class Pad(object):
 			self.dlog.excpt(e)
 			raise
 		
-	def calcline(self, line):
-		lineLength = 0
-		for letter in line.decode('utf-8'):
-			lineLength += 1
 			
-			# Wide unicode takes two spaces
-			if unicodedata.east_asian_width(letter) is 'W':
-				lineLength +=1
-			
-		# note that __future__ division is needed for correct ceiling
-		curnewlines = math.ceil(lineLength/self.pmaxx)
-		self.size += int(curnewlines)
-#		self.dlog.msg("Added " + str(curnewlines) + " Total: " + str(self.size) + " new lines for " + str(len(line)) + "c\n" )
 	
 	def get_post_no_of_marked_line(self):
 		y,x = self.save_position()
@@ -222,12 +272,14 @@ class Pad(object):
 			
 			unused_lines = 2
 			
-			#if self.size < self.screensize_y:
-			#	unused_lines = self.screensize_y - self.size -2
+			# Marked line relative to screen not counting pad size
+			marked_line_rel = pos_y - unused_lines
+			self.marked_line = marked_line_rel
+			
+			if self.size > self.screensize_y:
+				self.marked_line += (self.get_position() - self.screensize_y + 3)
 				
-			self.marked_line = (pos_y - unused_lines) + (self.get_position() - self.screensize_y + 3)
-			# + self.get_position() - self.pposy + unused_lines
-			self.dlog.msg("ml: " + str(self.marked_line) + " = pos_y: " + str(pos_y) + " + pos(): " + str(self.get_position()) + " - ss_y: " + str(self.screensize_y) + " + 1")
+			#self.dlog.msg("ml: " + str(self.marked_line) + " = pos_y: " + str(pos_y) + " + pos(): " + str(self.get_position()) + " - ss_y: " + str(self.screensize_y) + " + 1")
 			
 			# Just unmark the pos_y if clicked twice
 			if previous_marked_line == self.marked_line:
@@ -255,23 +307,11 @@ class Pad(object):
 		y, x = self.mypad.getyx()
 		return y, x
 	
-	def show_image(self):
-		pass
-		
 	def restore_postion(self, y, x):
 		self.mypad.move(y, x)
-	
-	def addstr(self, string, options=curses.A_NORMAL):  # @UndefinedVariable
-		
-		self.mypad.addstr(string, options)
-		self.line += string.decode('utf-8')
 
-		
-		if re.search(r'\n', string):
-			self.calcline(self.line.encode('utf-8'))
-			self.auto_scroll()
-			self.line = ''.encode('utf-8')
-		
+	def show_image(self):
+		pass
 			
 	def draw(self):
 		self.set_position(self.get_position())
