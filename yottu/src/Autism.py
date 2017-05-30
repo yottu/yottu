@@ -79,14 +79,14 @@ class Autism:
 					socket.setdefaulttimeout(timeout)
 					content += data
 					
-					# Show thread download progress in statusbar 
+					# Show thread download progress in the location of the statusbar 
 					if self.stdscr:
 						try:
-							screensize_x, screensize_y = self.stdscr.getmaxyx();
+							screensize_y, screensize_x = self.stdscr.getmaxyx();
 							statusText = source.upper() + "-GET: " + str((len(content)+len(data))/1024) + "K"
 							curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_GREEN)  # @UndefinedVariable
 							sb_progress = ""
-							self.stdscr.addstr(screensize_x-2, screensize_y-2-len(statusText), statusText, curses.color_pair(1))  # @UndefinedVariable
+							self.stdscr.addstr(screensize_y-2, screensize_x-3-len(statusText), statusText, curses.color_pair(1))  # @UndefinedVariable
 							self.stdscr.refresh()
 						except:
 							continue

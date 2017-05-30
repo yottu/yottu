@@ -1,29 +1,15 @@
 # -*- coding: utf-8 -*-
-
-import time
+from Bar import Bar
 import curses
-import unicodedata
 
 
-class Titlebar(object):
+class Titlebar(Bar):
 	def __init__(self, stdscr):
-		self.stdscr = stdscr
+		super(Titlebar, self).__init__(stdscr)
 		self.screensize_y, self.screensize_x = stdscr.getmaxyx()
 		self.sb_blank = 1
 		self.set_title(u"yottu v0.2 - https://github.com/yottu/yottu".encode('utf-8')
 		)
-		
-	def on_resize(self):
-		self.screensize_y, self.screensize_x = self.stdscr.getmaxyx()
-		self.draw()
-
-	def get_title(self):
-		return self.__title
-
-	def set_title(self, value):
-		self.__title = value[:self.screensize_x]
-		self.draw()
-
 		
 	def draw(self):
 		self.calc_blank()
@@ -32,24 +18,19 @@ class Titlebar(object):
 		titlebar_text = self.get_title()
 		titlebar_text += u" ".encode('utf-8')*self.sb_blank
 		try:
-			curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_GREEN)
-			self.stdscr.addstr(0, 0, titlebar_text, curses.color_pair(1))
+			curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_GREEN)  # @UndefinedVariable
+			self.stdscr.addstr(0, 0, titlebar_text, curses.color_pair(1))  # @UndefinedVariable
 			self.stdscr.refresh()
 		except:
-			quit(self.stdscr)
-	
-	
-	def calc_blank(self):
-		lineLength = 0
-		for letter in self.title.decode('utf-8'):
-			lineLength += 1
-			
-			# Wide unicode takes two spaces
-			if unicodedata.east_asian_width(letter) is 'W':
-				lineLength +=1
-			
-#		self.dlog.msg("Added " + str(curnewlines) + " 
-		self.sb_blank = self.screensize_x - lineLength
+			quit(self.stdscr)		
+		
+
+	def get_title(self):
+		return self.__title
+
+	def set_title(self, value):
+		self.__title = value[:self.screensize_x]
+		self.draw()
 	
 	
 	title = property(None, set_title, None, None)

@@ -9,8 +9,8 @@ class CatalogPad(Pad):
     '''
     classdocs
     '''
-    def __init__(self, stdscr):
-        super(CatalogPad, self).__init__(stdscr)
+    def __init__(self, stdscr, wl):
+        super(CatalogPad, self).__init__(stdscr, wl)
         self.catalogFetcher = None
         
     def stop(self):

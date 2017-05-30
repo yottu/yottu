@@ -43,6 +43,7 @@ class DictOutput(object):
 		
 		#self.tdict['OP'] = {'no': 213, 'com': 'unset', 'sub': 'unset'.encode('utf-8'), 'semantic-url': 'unset'.encode('utf-8')}
 		
+		
 		for posts in self.thread['posts']:
 			try:
 				
@@ -91,7 +92,7 @@ class DictOutput(object):
 				curses.init_pair(i + 1, i, -1)  # @UndefinedVariable
 						
 			# assign color to post number
-			color = randint(2, 255)
+			color = randint(3, 255)
 	
 	
 	
@@ -190,6 +191,7 @@ class DictOutput(object):
 					# Iterate over every word in a comment
 					for word in comlist:
 						
+						
 						# refposts contains all >>(\d+) in a comment
 						if word not in refposts:
 							# Output non-reference
@@ -204,7 +206,7 @@ class DictOutput(object):
 								
 								# Add (You) to referenced posts written by self.nickname
 								if re.match(self.tdict[int(word)]['name'], self.nickname):
-									self.bp.addstr("(You) ", curses.A_BOLD | curses.color_pair(221), indent)  # @UndefinedVariable
+									self.bp.addstr("(You) ", curses.A_BOLD | curses.color_pair(221), indent, mentioned=True)  # @UndefinedVariable
 									try:
 										Notifier.send(name, com)
 									except:

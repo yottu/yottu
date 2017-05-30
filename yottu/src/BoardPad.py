@@ -13,8 +13,8 @@ class BoardPad(Pad):
 	'''
 	classdocs
 	'''
-	def __init__(self, stdscr):
-		super(BoardPad, self).__init__(stdscr)
+	def __init__(self, stdscr, wl):
+		super(BoardPad, self).__init__(stdscr, wl)
 		self.board = ""
 		self.threadno = ""
 		self.nickname = ""
@@ -78,6 +78,10 @@ class BoardPad(Pad):
 		self.board = board
 		self.threadno = threadno
 		self.nickname = nickname
+		
+		self.sb.set_nickname(self.nickname)
+		self.sb.set_board(self.board)
+		self.sb.set_threadno(self.threadno)
 		
 		self.contentFetcher = Autism(self.board, self.threadno)
 		self.contentFetcher.setstdscr(self.stdscr)

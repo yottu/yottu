@@ -16,10 +16,10 @@ class CatalogFetcher(threading.Thread):
 	def __init__(self, stdscr, board, cp, search=""):
 		self.stdscr = stdscr
 		self.board = board
-		self.cp = cp
+		self.cp = cp # CatalogPad
 		self.search = search
-		self.sb = Statusbar(self.stdscr, "", self.board, "")
-		self.tb = Titlebar(self.stdscr)
+		self.sb = self.cp.sb
+		self.tb = self.cp.tb
 		Thread.__init__(self)
 		self._stop = threading.Event()
 		self._active = False # CatalogPad the CatalogFetcher runs in is active
@@ -48,10 +48,10 @@ class CatalogFetcher(threading.Thread):
 			getCatalog = Autism(self.board)
 		except Exception as e:
 			dlog.excpt(e)
-			self.stdscr.addstr(0, 0, str(e), curses.A_REVERSE)
+			self.stdscr.addstr(0, 0, str(e), curses.A_REVERSE)  # @UndefinedVariable
 			self.stdscr.refresh()
-				
-		self.tb.draw()
+		
+
 		
 		while True:
 			
@@ -70,6 +70,9 @@ class CatalogFetcher(threading.Thread):
 				self.sb.setStatus(str(e))
 				dlog.excpt(e)
 				pass
+				
+			if self._active:		
+				self.tb.draw()
 				
 			for update_n in range (90, -1, -1):
 				if self._stop.is_set():

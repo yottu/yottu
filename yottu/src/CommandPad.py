@@ -5,14 +5,14 @@ Created on Oct 9, 2015
 
 from Pad import Pad
 import curses
-from Titlebar import Titlebar
-from Statusbar import Statusbar
 
 class CommandPad(Pad):
-	def __init__(self, stdscr):
-		super(CommandPad, self).__init__(stdscr)
-		self.tb = Titlebar(self.stdscr)
-		self.sb = Statusbar(self.stdscr, "(Status)", "", "")
+	def __init__(self, stdscr, wl):
+		super(CommandPad, self).__init__(stdscr, wl)
+
+		self.sb.set_nickname("(status)")
+		self.sb.set_sb_windowno(1)
+		
 		self.usage()
 		
 	def on_resize(self):
@@ -22,15 +22,11 @@ class CommandPad(Pad):
 		self.sb.on_resize()
 		
 	def on_update(self):
-		self.sb.draw("")
+		self.sb.draw()
 	
 	def active(self):
 		super(CommandPad, self).active()
-		try:
-			self.tb.draw()
-			self.sb.draw("")
-		except:
-			raise
+
 		
 	def inactive(self):
 		super(CommandPad, self).inactive()

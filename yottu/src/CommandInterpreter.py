@@ -12,6 +12,8 @@ from BoardPad import BoardPad
 import Config
 import re
 import json
+from urllib2 import HTTPError
+from PostReply import PostReply
 
 class CommandInterpreter(threading.Thread):
 	def __init__(self, stdscr, wl):
@@ -121,6 +123,8 @@ class CommandInterpreter(threading.Thread):
 					self.wl.get_active_window_ref().show_image(self.postno_marked, True, options)
 				else:
 					self.wl.get_active_window_ref().show_image(self.postno_marked)
+		except HTTPError as err:
+				self.wl.get_active_window_ref().sb.setStatus("Image: " + str(err.code))
 		except Exception as err:
 			self.dlog.msg("CommandInterpreter.show_image_marked(): " + str(err))
 
@@ -301,8 +305,11 @@ class CommandInterpreter(threading.Thread):
 				active_window.set_captcha(str(captcha))
 				active_window.post_submit()
 				active_window.update_thread()
+			except PostReply.PostError as err:
+				active_window.sb.setStatus(str(err))
 			except Exception as err:
 				self.dlog.msg("Can't submit captcha: " + str(err))
+				
 				curses.ungetch('/')  # @UndefinedVariable
 				#self.cmode
 				#self.cmd_history(-1)

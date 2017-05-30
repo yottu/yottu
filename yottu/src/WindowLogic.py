@@ -12,7 +12,7 @@ from DebugLog import DebugLog
 from CatalogPad import CatalogPad
 
 
-class WindowLogic(threading.Thread):
+class WindowLogic(object):
 	'''
 	classdocs
 	'''
@@ -22,43 +22,50 @@ class WindowLogic(threading.Thread):
 		self.stdscr = stdscr
 		self.dlog = DebugLog(self)
 		try:
-			self.windowList = []
+			self.windowList = [] # Array of all window objects (i.e. Pads)
+			self.windowListProperties =  {} # Associating a window object with its properties
 			
-			self.compad = CommandPad(stdscr)
 			
-			self.windowList.append(self.compad)
+			self.compad = CommandPad(stdscr, self)
+			self.append_pad(self.compad)
 			self.set_active_window(0)
-			self.compad.draw()
 			
-#			board = "int"
-#			threadno = "50294416"
 			self.nickname = "asdfasd"
 			
-			
-#			self.bp = BoardPad(stdscr)
-#			self.bp.join(board, threadno, self.nickname)
-#			self.windowList.append(self.bp)
-#			self.set_active_window(1)
-			
-			Thread.__init__(self)
-			self._stop = threading.Event()
+	#		Thread.__init__(self)
+	#		self._stop = threading.Event()
 		except:
 			raise
 
 	def get_window_list(self):
 		return self.__windowList
+	
+	def get_property(self, window, prop):
+		return self.windowListProperties[window][prop]
+	
+	
+	def set_property(self, window, prop, value):
+		self.windowListProperties[window][prop] = value
 
 
 	def set_window_list(self, value):
 		self.__windowList = value
 
+
+	def append_pad(self, window):
+		self.windowList.append(window)
+		# Properties of a window instance, note: use deepcopy from copy if not assigning it directly 
+		self.windowListProperties[window] = {'sb_unread': False, 'sb_lines': 0, 'sb_mentioned': False}
+		
+		# Let statusbar of window know what window number it has
+		# TODO: This needs to be reset when a window gets destroyed or moved
+		window.sb.set_sb_windowno(len(self.windowList))
 		
 	def join_thread(self, board, thread):
 		try:
-			self.dlog.msg("Creating new boardpad for " + thread + " on /" + board + "/")
-			boardpad = BoardPad(self.stdscr)
+			boardpad = BoardPad(self.stdscr, self)
 			boardpad.join(board, thread, self.nickname)
-			self.windowList.append(boardpad)
+			self.append_pad(boardpad)
 			self.raise_window(len(self.windowList)-1)
 		except Exception, err:
 			self.dlog.excpt(err)
@@ -74,31 +81,42 @@ class WindowLogic(threading.Thread):
 			
 	def catalog(self, board, search=""):
 		try:
-			catalogpad = CatalogPad(self.stdscr)
+			catalogpad = CatalogPad(self.stdscr, self)
 			catalogpad.join(board, search)
-			self.windowList.append(catalogpad)
+			self.append_pad(catalogpad)
+			
 			self.raise_window(len(self.windowList)-1)
 		except Exception, err:
 			self.dlog.excpt(err)
 			
 	def destroy_active_window(self):
 		activeWindow = self.get_active_window()
+		activeWindowRef = self.get_active_window_ref()
 		self.dlog.msg("Parting window " + str(activeWindow))
 		if activeWindow > 0:
 			self.raise_window(0)
 			
 			try:
-				self.windowList[activeWindow].stop()
-				self.windowList.remove(self.windowList[activeWindow])
+				activeWindowRef.stop()
+				self.windowList.remove(activeWindowRef)
+				self.windowListProperties.pop(activeWindowRef)
 			except Exception, err:
 				self.dlog.excpt(err)++-2
+			
+	def get_window(self, window):
+		'''Returns the index number of the arg'''
+		return self.windowList.index(window)	
+	
+	def get_window_ref(self, index):
+		'''Returns the object of the index in windowList'''
+		return self.windowList[index]
 			
 	def get_active_window(self):
 		"""Returns the index number of the active window"""
 		return self.__activeWindow
 	
 	def get_active_window_ref(self):
-		"""Returns the active window"""
+		"""Returns the active window object"""
 		return self.windowList[self.__activeWindow]
 
 

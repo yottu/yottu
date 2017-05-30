@@ -9,14 +9,16 @@ import curses
 import unicodedata
 from DebugLog import DebugLog
 import re
+from Titlebar import Titlebar
+from Statusbar import Statusbar
 
 class Pad(object):
 	reservedscreen = 3
 	padbuffersize = 4096
 
-	def __init__(self, stdscr):
+	def __init__(self, stdscr, wl):
 		self.stdscr = stdscr
-		
+		self.wl = wl # WindowLogic
 		
 		self.screensize_y, self.screensize_x = self.stdscr.getmaxyx();
 		height = self.screensize_y-Pad.reservedscreen; width = self.screensize_x
@@ -34,11 +36,14 @@ class Pad(object):
 		(self.pmaxy, self.pmaxx) = self.mypad.getmaxyx()
 		self.actualpmaxy = self.pmaxy-Pad.padbuffersize
 		
+		self.tb = Titlebar(self.stdscr)
+		self.sb = Statusbar(self.stdscr, "(<Pad>)")
+		
 		self.dlog = DebugLog("debug.log")
 		
 		self.dlog.msg("pmaxy: " + str(self.pmaxy), 5)
 		self.dlog.msg("actualpmaxy: " + str(self.actualpmaxy), 5)
-
+		
 		self._active = False # Pad is actively viewed by user
 		
 		self.autoScroll = True
@@ -57,6 +62,16 @@ class Pad(object):
 		
 	def active(self):
 		self._active = True
+		
+		# Reset window's unread properties and remove unread status from status bar
+		self.wl.set_property(self, 'sb_unread', False)
+		self.wl.windowListProperties[self]['sb_lines'] = 0
+		self.wl.windowListProperties[self]['sb_mentioned'] = False
+		self.generate_unread_window_element()
+		
+		self.sb.draw()
+		self.tb.draw()
+		self.draw()
 		
 	def inactive(self):
 		self._active = False
@@ -77,7 +92,7 @@ class Pad(object):
 		self.draw()
 		
 	
-	def addstr(self, string, options=curses.A_NORMAL, indent=0):  # @UndefinedVariable
+	def addstr(self, string, options=curses.A_NORMAL, indent=0, mentioned=False):  # @UndefinedVariable
 		try:
 			
 			# check if comment needs to be line wrapped, indent it if so
@@ -117,11 +132,24 @@ class Pad(object):
 				self.mypad.addstr(string, options)
 				(self.pposy, self.pposx) = self.mypad.getyx()
 				self.size = self.pposy
+		
+			if mentioned:
+				self.wl.windowListProperties[self]['sb_mentioned'] = True
 		except Exception as err:
-			self.dlog.msg("Pad.addstr(): " + str(err))
+			self.dlog.msg("Pad.addstr() - indent != 0: " + str(err))
 			
 		
 		if re.search(r'\n', string):
+			if not self._active:
+				try:
+					#self.dlog.msg("Not Active: " + str(self))
+					self.wl.set_property(self, 'sb_unread', True)
+					self.wl.windowListProperties[self]['sb_lines'] += 1
+						
+					self.generate_unread_window_element()
+					
+				except Exception as err:
+					self.dlog.msg("Pad.addstr() -> not self._active: " + str(err))
 			self.auto_scroll()
 		
 	def calcline(self, line):
@@ -141,6 +169,36 @@ class Pad(object):
 			
 		finally:	
 			return lineLength
+		
+	def generate_unread_window_element(self):
+		''' 
+		generate list of tuples with (str, curses attribute) for unread windows
+		this is passed to Statusbar which has no direct access to WindowLogic
+		'''
+		
+		unread_windows = []
+		# iterate over all window objects
+		for window in self.wl.windowListProperties:
+			
+			# if the current window has unread messages
+			if self.wl.get_property(window, 'sb_unread'):
+				
+				# get its index number
+				windowNumber = self.wl.get_window_list().index(window)
+				unread_lines = self.wl.get_property(window, 'sb_lines')
+				
+				# and append the index as a tuple with curses attribute to a list
+				if self.wl.get_property(window, 'sb_mentioned'):
+					unread_windows.append((windowNumber, curses.A_BOLD | curses.color_pair(2), # @UndefinedVariable
+										unread_lines)) 
+					
+				else:		
+					unread_windows.append((windowNumber, curses.A_BOLD | curses.color_pair(1),  # @UndefinedVariable
+										unread_lines))
+		
+		# update the attribute of the current window's status bar
+		active_win = self.wl.get_active_window_ref()
+		active_win.sb.set_unread_windows(unread_windows)
 	
 	def set_auto_scroll(self, value):
 		self.__autoScroll = value
@@ -302,6 +360,7 @@ class Pad(object):
 		except Exception as err:
 			self.dlog.msg("Pad.unmarkline(): " + str(err))
 			pass
+		
 		
 	def save_position(self):
 		y, x = self.mypad.getyx()

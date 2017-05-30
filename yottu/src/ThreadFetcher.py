@@ -19,9 +19,13 @@ class ThreadFetcher(threading.Thread):
 		self.stdscr = stdscr
 		self.board = board
 		self.bp = bp
-		self.nickname = nickname		
-		self.sb = Statusbar(self.stdscr, self.nickname, self.board, self.threadno)
-		self.tb = Titlebar(self.stdscr)
+		self.nickname = nickname
+		
+		self.sb = self.bp.sb
+		self.tb = self.bp.tb
+				
+		#self.sb = Statusbar(self.stdscr, self.nickname, self.board, self.threadno)
+		#self.tb = Titlebar(self.stdscr)
 		self.tdict = {}
 		self.dictOutput = ""
 		self.update_n = 9
@@ -83,6 +87,7 @@ class ThreadFetcher(threading.Thread):
 				time.sleep(1)
 	
 			try:
+				self.sb.setStatus('')
 				getThread.setstdscr(self.stdscr)
 				getThread.get()
 				thread = getattr(getThread, "jsoncontent")
@@ -101,15 +106,17 @@ class ThreadFetcher(threading.Thread):
 					self.sb.setStatus(str(e))
 					dlog.excpt(e)
 					break
-				if e.code == 304:
-					self.sb.setStatus(str(e.code))
+				elif e.code == 304:
 					if self.update_n < 20:
 						self.update_n += 1
+
+					self.sb.setStatus(str(e.code))
 			except Exception as e:
 				self.sb.setStatus(str(e))
 				dlog.excpt(e)
 				pass
-				
+
+							
 			for update_n in range (self.update_n, -1, -1):
 				
 				# Leave countdown loop if stop is set

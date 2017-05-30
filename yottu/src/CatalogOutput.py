@@ -54,8 +54,8 @@ class CatalogOutput(object):
 				for i in range(0, curses.COLORS):  # @UndefinedVariable
 					curses.init_pair(i + 1, i, -1) # @UndefinedVariable
 						
-				# assign color to post number
-				color = randint(2, 255)
+				# assign color to post number # start at unreserved colors
+				color = randint(3, 255)
 	
 				try: replies = threads['replies']
 				except: replies = ""

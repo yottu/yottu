@@ -27,7 +27,7 @@ def main(argv):
 	
 	try:	
 		wl = WindowLogic(stdscr)
-		wl.start()
+		#wl.start()
 	except Exception as e:
 		raise
 		
@@ -49,8 +49,8 @@ def main(argv):
 	updater.stop()
 	updater.join()
 	dlog.msg("Updater joined.")
-	wl.stop()
-	wl.join()
+	#wl.stop()
+	#wl.join()
 	dlog.msg("Thread Fetcher joined.")
 
 	curses.nocbreak()  # @UndefinedVariable
