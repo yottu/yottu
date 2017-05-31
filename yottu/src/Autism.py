@@ -51,7 +51,7 @@ class Autism:
 				else:
 					return None
 					
-				uri = "http://" + domain + path # TODO user setting for http/https
+				uri = "https://" + domain + path # TODO user setting for http/https
 				
 				self.dlog.msg("JsonFetcher: In _query for " + uri, 5)
 

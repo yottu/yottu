@@ -44,6 +44,7 @@ class CommandInterpreter(threading.Thread):
 		self.command_cached = None
 		self.context = "int" # context in which command is executed
 		self.postno_marked = None # Currently marked postno
+		self.filename = (None, None) # Tuple holding path and ranger mode bool
 		
 		curses.curs_set(False)  # @UndefinedVariable
 		self.terminate = 0
@@ -167,7 +168,7 @@ class CommandInterpreter(threading.Thread):
 	def clear_cmdinput(self, status_char):
 		# save current position 
 		#(y, x) = self.stdscr.getyx()
-		
+			
 		# clear line
 		cmd_text = "[" + status_char + "] "
 		self.stdscr.move(self.screensize_x-1, 0)
@@ -182,6 +183,34 @@ class CommandInterpreter(threading.Thread):
 		
 		# restore position
 		#self.stdscr.move(y, x)
+
+	def attach_file(self):
+		''' start ranger to select filename '''
+		#import ranger
+		#curses.endwin()
+		#foo = ranger.main()
+		
+		filename = "/tmp/file"
+		
+		# Just toggle the file for now
+		if self.tmode:
+			if self.filename[0]:
+				self.filename = (None, None)
+				
+				(y, x) = self.stdscr.getyx()
+				self.stdscr.move(self.screensize_x-1, 0)
+				self.stdscr.addstr("[>] ")
+				#self.wl.get_active_window_ref().sb.setStatus("File: None")
+				self.stdscr.move(y, x)
+			else:
+				self.filename = (filename, True)
+				(y, x) = self.stdscr.getyx()
+				self.stdscr.move(self.screensize_x-1, 0)
+				self.stdscr.addstr("[F] ")
+				self.stdscr.move(y, x)
+				#self.wl.get_active_window_ref().sb.setStatus("File: " + str(filename)) 
+			pass
+		
 		
 	def cout(self, c):
 		self.stdscr.addstr(self.screensize_x-1, self.clinepos, c)
@@ -246,6 +275,21 @@ class CommandInterpreter(threading.Thread):
 		self.command_history_pos += 1
 		self.command_history.append(self.command)
 		self.command_history_pos = len(self.command_history)
+
+
+	def line_marked(self):
+		try:
+			postno = self.wl.get_active_window_ref().get_post_no_of_marked_line()
+			
+			# FIXME postno_marked should be an attribute of bp
+			self.postno_marked = postno
+			if postno:
+				self.wl.get_active_window_ref().show_image_thumb(self.postno_marked)
+			
+
+		except Exception as err:
+			self.dlog.msg("CommandInterpreter.line_marked(): " + str(err))
+	
 				
 
 	def exec_com(self):
@@ -274,9 +318,9 @@ class CommandInterpreter(threading.Thread):
 			
 			active_thread_OP = active_window.threadno
 			self.dlog.msg("Creating post on " + str(active_window.board) + "/"
-						+ str(active_thread_OP) + " | Comment: " + str(comment))
+						+ str(active_thread_OP) + " | Comment: " + comment)
 			try:
-				active_window.post_prepare(str(comment))
+				active_window.post_prepare(comment=comment, filename=self.filename[0], ranger=self.filename[1])
 				self.captcha_mask = True
 			except Exception as err:
 				self.dlog.msg("CommandInterpreter: BoardPad.set_captcha(): " + str(err))
@@ -303,8 +347,10 @@ class CommandInterpreter(threading.Thread):
 				cmd_args.pop(0)
 				captcha = " ".join(cmd_args)
 				active_window.set_captcha(str(captcha))
-				active_window.post_submit()
+				response = active_window.post_submit()
 				active_window.update_thread()
+				self.dlog.msg("Response: " + str(response))
+
 			except PostReply.PostError as err:
 				active_window.sb.setStatus(str(err))
 			except Exception as err:
@@ -437,21 +483,6 @@ class CommandInterpreter(threading.Thread):
 		else:
 			self.dlog.msg("Invalid command: " + self.command)
 		
-
-
-	def line_marked(self):
-		try:
-			postno = self.wl.get_active_window_ref().get_post_no_of_marked_line()
-			
-			# FIXME postno_marked should be an attribute of bp
-			self.postno_marked = postno
-			if postno:
-				self.wl.get_active_window_ref().show_image_thumb(self.postno_marked)
-			
-
-		except Exception as err:
-			self.dlog.msg("CommandInterpreter.line_marked(): " + str(err))
-	
 	
 	def run(self):
 		'''Loop that refreshes on input'''
@@ -623,10 +654,20 @@ class CommandInterpreter(threading.Thread):
 								self.cmd_history(1)
 								
 							continue
-					except:
+																									
+					except TypeError:
 						pass
+					except Exception as err:
+						self.dlog.msg("CommandInterpreter.run() -> cmode: " + str(err))
+						
+					# Catch Meta-Keys
+					if c == -1 and len(inputstr) == 2 and ord(inputstr[0]) == 27:
+						if str(inputstr[1]) == 'f':
+							self.attach_file()
+							continue
 					
 					# On Enter or ESC (27)
+					# FIXME: 27 is just the control character sequence but it works in combination with c == -1
 					try:
 						# Need to avoid the Exception for long unicode strings
 						if len(inputstr) == 1 and c != -1 and (c == u'\n' or ord(c) == 27):
@@ -634,7 +675,7 @@ class CommandInterpreter(threading.Thread):
 								# Only execute if command is not empty
 								if len(self.command) and self.command is not "say ":
 									self.exec_com()
-
+							
 						
 							# reset history position counter
 							self.command_history_pos = len(self.command_history)
@@ -643,6 +684,10 @@ class CommandInterpreter(threading.Thread):
 							self.tmode = False
 							self.command = ""
 							self.clear_cmdinput("^")
+							
+							# Reset attachment file and status
+							self.filename = (None, None)
+							#self.wl.get_active_window_ref().sb.setStatus("")
 							#self.stdscr.addstr(self.screensize_x-1, 0, "[T] ")
 							curses.curs_set(False)  # @UndefinedVariable
 
@@ -784,7 +829,7 @@ class CommandInterpreter(threading.Thread):
 						raise
 				
 				else:
-					#self.dlog.msg("Unbound key: " + str(c))
+					self.dlog.msg("Unbound key: " + str(c))
 					continue
 				
 		except Exception as err:

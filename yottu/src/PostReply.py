@@ -10,8 +10,10 @@ import urllib2
 from bs4 import BeautifulSoup
 import requests # FIXME use either urllib or requests, what is best for python 2 and 3?
 from TermImage import TermImage
+import mimetypes
 
 import warnings
+import os.path
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 class PostReply(object):
@@ -86,14 +88,44 @@ class PostReply(object):
             TermImage.display(self.captcha_image_filename)
         except:
             raise
+    
 
-    def post(self, comment="", subject="", file_attach=""):
+    def post(self, comment="", subject="", file_attach="", ranger=False):
+        '''
+        Note: set_captcha_solution() must be called before this method
+        subject: not implemented
+        file_attach: (/path/to/file.ext) will be uploaded as "file" + extension
+        ranger: extract path from ranger's --choosefile file
+        '''
+        
+        # Read file / get mime type
+        try:
+            if file_attach:
+                
+                # extract file path from ranger file and re-assign it
+                if ranger:
+                    with open(file_attach, "r") as f:
+                        file_attach = f.read()
+                
+                _, file_ext = os.path.splitext(file_attach)
+                filename = "file" + file_ext
+                content_type, _ = mimetypes.guess_type(filename)
+                with open(file_attach, "rb") as f:
+                    filedata = f.read()
+                    
+                if content_type is None:
+                    raise TypeError("Could not detect mime type of file " + str(filename))
+            else:
+                filename = filedata = content_type = ""
+        except:
+            raise
 
+        
         url = "https://sys.4chan.org/" + self.board + "/post"
         #url = 'http://httpbin.org/status/404'
         #url = "http://localhost/" + self.board + "/post"
         #url = 'http://httpbin.org/post'
-        #url = "https://requestb.in/zzuhovzz"
+        #Hurl = "https://requestb.in/18qz8kd1"
 
 
         values = { 'MAX_FILE_SIZE' : ('', '4194304'),
@@ -106,7 +138,7 @@ class PostReply(object):
                    'com' : ('', comment),
                    'recaptcha_challenge_field' : ('', self.captcha_challenge),
                    'recaptcha_response_field' : ('', self.captcha_solution),
-                   #  'upfile' : ('', '')
+                   'upfile' : (filename, filedata, content_type)
                  }
         
         headers = { 'User-Agent' : 'Mozilla/5.0 (X11; Linux x86_64)' }

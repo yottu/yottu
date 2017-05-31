@@ -21,6 +21,9 @@ class BoardPad(Pad):
 		self.threadFetcher = None
 		self.postReply = None
 		self.comment = ""
+		self.subject = "" # TODO not implemented
+		self.filename = None
+		self.ranger = False # If true filename contains path to actual filename
 		self.tdict = {}
 		self.contentFetcher = None
 		self.dlog = DebugLog(self)
@@ -83,6 +86,7 @@ class BoardPad(Pad):
 		self.sb.set_board(self.board)
 		self.sb.set_threadno(self.threadno)
 		
+		# FIXME ContentFetcher should probably only be called through ThreadFetcher since it is blocking 
 		self.contentFetcher = Autism(self.board, self.threadno)
 		self.contentFetcher.setstdscr(self.stdscr)
 		
@@ -92,8 +96,11 @@ class BoardPad(Pad):
 		
 		self.postReply = PostReply(self.board, self.threadno)
 		
-	def post_prepare(self, comment):
+	def post_prepare(self, comment="", filename=None, ranger=False, subject=""):
 		self.comment = comment
+		self.filename = filename
+		self.ranger = ranger
+		self.subject = subject
 		self.get_captcha()
 		
 	def get_captcha(self):
@@ -105,9 +112,16 @@ class BoardPad(Pad):
 		self.postReply.set_captcha_solution(captcha)
 		
 	def post_submit(self):
-		if self.comment:
+		if self.filename:
+			response = self.postReply.post(self.comment, self.subject, self.filename, self.ranger)
+		elif self.comment:
 			response = self.postReply.post(self.comment)
-			return response
+		else:
+			raise ValueError("Either filename or comment must be set.")
+		
+		self.filename = None
+		self.ranger = None
+		return response
 			
 			
 	def update_thread(self):
@@ -131,7 +145,7 @@ class BoardPad(Pad):
 				return None
 			
 		except Exception as err: 
-			self.dlog.msg("BoardPad: Exception in assembling file name: " + str(err))
+			self.dlog.msg("BoardPad: Exception in assembling filename name: " + str(err))
 			raise
 		
 		# Convert to lower case for later comparison
@@ -142,6 +156,7 @@ class BoardPad(Pad):
 		else:
 			img_store_filename = self.board + "-" + img_tim[:64] + img_store_ext
 		
+		# FIXME ContentFetcher should probably only be called through ThreadFetcher since it is blocking 
 		try:
 			if thumb:
 				self.contentFetcher.save_image(str(img_tim+"s.jpg"), img_store_filename)
@@ -158,15 +173,16 @@ class BoardPad(Pad):
 				elif img_ext == ".gif":
 					self.dlog.msg("No gif viewer configured.")
 				elif img_ext == ".webm":
-					# FIXME use fbdev and redirect output to /dev/null
-					#TermImage.display_mpv(img_store_filename, [], "./cache/")
-					self.dlog.msg("No webm viewer configured.")
+					# TODO maybe use fbdev and redirect output to /dev/null
+					# FIXME this might mess up the term in tiled wm
+					TermImage.display_mpv(img_store_filename, [], "./cache/")
+					#self.dlog.msg("No webm viewer configured.")
 			else:
 				if img_ext == ".jpg" or img_ext == ".png" or img_ext == ".gif":
 					TermImage.display(img_store_filename, "./cache/")
 				else:
 #					self.statusbar.msg("File not viewable.")
-					self.dlog.msg(img_ext + " file not viewable.")
+					self.dlog.msg(img_ext + " filename not viewable.")
 		except Exception as err:
 			self.dlog.msg("Exception in TermImage call: " + str(err))
 			
