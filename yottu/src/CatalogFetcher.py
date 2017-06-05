@@ -41,7 +41,7 @@ class CatalogFetcher(threading.Thread):
 
 	def run(self):
 		dlog = DebugLog()
-		dlog.msg("CatalogFetcher: Running on /" + self.board + "/", 3)
+		dlog.msg("CatalogFetcher: Running on /" + self.board + "/", 4)
 		
 		try:
 			catOutput = CatalogOutput(self.cp, self.search)

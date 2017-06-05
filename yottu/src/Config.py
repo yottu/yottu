@@ -8,7 +8,7 @@ import DebugLog
 import os
 import json
 from os.path import expanduser
-from ConfigParser import NoSectionError, DuplicateSectionError
+from ConfigParser import NoSectionError, DuplicateSectionError, NoOptionError
 
 
 class Config(object):
@@ -26,7 +26,7 @@ class Config(object):
 		self.configFullPath = self.homeDir + self.configDir + self.configFile # i.e. /home/user/.config/yottu/config
 		
 		self.dlog = DebugLog.DebugLog()
-		self.cfg = ConfigParser.ConfigParser()
+		self.cfg = ConfigParser.SafeConfigParser()
 		
 		self.readConfig()
 
@@ -59,7 +59,7 @@ class Config(object):
 		
 		# try to load existing values
 		try:
-			keyval = json.loads(self.list(key))
+			keyval = json.loads(self.get(key))
 		except:
 			pass
 		
@@ -72,7 +72,7 @@ class Config(object):
 	def remove(self, key, key_sub, val_sub):
 		'''remove json.dumps from value'''
 # 		try:
-# 			keyval = json.loads(self.list(key))
+# 			keyval = json.loads(self.get(key))
 # 		except:
 # 			pass
 # 		del keyval['key_sub']
@@ -83,17 +83,20 @@ class Config(object):
 		# FIXME: is the encode really necessary 
 		self.cfg.set('Main', key, json.dumps(json.JSONEncoder().encode([])))
 	
-	def list(self, key):
-		'''list'''
+	def get(self, key):
+		'''get value(s) of key (returns key of json.loads(dict)'''
 		try:
 			items = self.getSettings()
-			self.dlog.msg("listing " + str(json.dumps(dict(items)[key])))
+			#self.dlog.msg("listing " + str(json.dumps(dict(items)[key])))
 			return json.loads(dict(items)[key])
+		except KeyError:
+			raise
 		except:
 			raise
-		
+
 		
 	def readConfig(self):
+		''' read settings from file and to self.cfg (ConfigParser object) '''
 		try:
 			self.cfg.read(self.configFullPath)
 		except Exception as e:
@@ -112,6 +115,11 @@ class Config(object):
 		except Exception as e:
 			self.dlog.excpt(e)
 			
+# 	def getSetting(self, key, section='Main'):
+# 		''' returns value of key in section '''
+# 		items = self.getSettings(section)
+# 		return dict(items)[key]
+			
 	def getSettings(self, section='Main'):
 		'''returns a list of all settings'''
 		try:
@@ -121,14 +129,13 @@ class Config(object):
 			items = []
 		return items
 	
-	# FIXME: This can only get one value (a string), combine with json or csv module
-	def get(self, key, section='Main'):
-		'''returns values of key in section'''
-		try:
-			items = self.getSettings()
-			return dict(items)[json.loads(key)]
-		except:
-			raise
+# 	def get(self, key, section='Main'):
+# 		'''returns values of key in section'''
+# 		try:
+# 			items = self.getSettings(section)
+# 			return dict(items)[json.loads(key)]
+# 		except:
+# 			raise
 		
 		
 	

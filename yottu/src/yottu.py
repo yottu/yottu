@@ -6,6 +6,8 @@ from DebugLog import DebugLog
 from CommandInterpreter import CommandInterpreter
 from WindowLogic import WindowLogic
 from Updater import Updater
+import sys
+from time import sleep
 
 locale.setlocale(locale.LC_ALL, '')
 
@@ -17,13 +19,12 @@ def main(argv):
 	def __call__(self):
 		pass
 
-
-	
 	stdscr = curses.initscr()
 	curses.noecho()  # @UndefinedVariable
 	curses.cbreak()  # @UndefinedVariable
 	stdscr.keypad(1)
 	curses.start_color()
+
 	
 	try:	
 		wl = WindowLogic(stdscr)
@@ -60,6 +61,8 @@ def main(argv):
 	curses.resetty()  # @UndefinedVariable
 	dlog.msg("Terminal restored.")
 
+
+sys.stdout.write("\x1b]2;%s\x07" % "Yottu (._. )")
 curses.wrapper(main)
 
 

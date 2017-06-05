@@ -14,9 +14,14 @@ import re
 import json
 from urllib2 import HTTPError
 from PostReply import PostReply
+from ConfigParser import NoOptionError
+import sys
+import unicodedata
+import subprocess
 
 class CommandInterpreter(threading.Thread):
 	def __init__(self, stdscr, wl):
+		
 		self.stdscr = stdscr
 		self.wl = wl
 		self.screensize_x = 0
@@ -29,8 +34,7 @@ class CommandInterpreter(threading.Thread):
 		Thread.__init__(self)
 		
 		self.cfg = Config.Config(".config/yottu/", "config")
-		self.settings = None
-		self.readconfig()
+		
 		# For Saving/Restoring window state #FIXME
 		#self.state_file = "state.pickle"
 		#self.state_file = self.cfg.get_config_dir_full_path() + self.state_file
@@ -41,38 +45,62 @@ class CommandInterpreter(threading.Thread):
 		
 		self.clinepos = 4
 		self.command = ""
+		self.command_pos = 0 # position of cursor in command
 		self.command_cached = None
-		self.context = "int" # context in which command is executed
-		self.postno_marked = None # Currently marked postno
+		self.context = "int" # context in which command is executed # Overwritten by readconfig()
+		self.postno_marked = None # Currently marked postino
 		self.filename = (None, None) # Tuple holding path and ranger mode bool
 		
 		curses.curs_set(False)  # @UndefinedVariable
 		self.terminate = 0
-		self.dlog = DebugLog(self.wl)
+		self.dlog = DebugLog(self.wl, debugLevel=3)
 		
 		self.command_history = []
 		self.command_history_pos = -1
 		
+		self.nickname = ""
+		
+		self.readconfig()
+		
 		self.autojoin()
-
+		
 		#self.restore_state()
 		
 	def readconfig(self):
-		self.settings = self.cfg.getSettings()
+		try:
+			self.cfg.readConfig()
+			
+			self.context = self.cfg.get("default_context")
+			self.nickname = self.cfg.get("nickname")
+			self.wl.set_nickname(self.nickname)
 
+		
+		except KeyError or NoOptionError as err:
+			self.dlog.warn(err, 3)
+			pass
+			
+		except Exception as err:
+			self.dlog.excpt(err, 3, "in " + str(type(self)) + " function: " + str(sys._getframe().f_code.co_name))
+			raise
+		
+		finally:
+			# Set defaults
+			if not self.context: self.context = "g"
+			if not self.nickname: self.wl.set_nickname(' ')
+		
 	# FIXME: context not saved, ConfigParser limited to one string (one thread)
 	# FIXME: key value should actually assign values to keys {'threadno': 12345, 'board': 'int'} 
 	# TODO threadno should be a string to search the catalog for
 	# on multiple results make a selectable catalog list 
 	def autojoin(self):
 		try:
-			threads = self.cfg.list("autojoin_threads")
+			threads = self.cfg.get("autojoin_threads")
 			if (threads):
 				for kv in json.loads(threads):
-					self.dlog.msg(str(kv.items()[0][0]))
+					#self.dlog.msg(str(kv.items()[0][0]))
 					board = kv.items()[0][0]
 					thread = kv.values()[0]
-					self.dlog.msg("Joining thread: >>>" + board + "/" + thread)
+					self.dlog.msg("Joining thread: >>>" + board + ">" + thread)
 					self.wl.join_thread(board, thread)
 		except Exception:
 			pass
@@ -80,8 +108,8 @@ class CommandInterpreter(threading.Thread):
 		
 	def setting_list(self, key):
 		try:
-			listing = self.cfg.list(key)
-			self.dlog.msg("Values for " + key + ": " + str(listing))
+			listing = self.cfg.get(key)
+			self.wl.compadout("Values for " + key + ": " + str(listing))
 		except:
 			raise
 		
@@ -161,6 +189,7 @@ class CommandInterpreter(threading.Thread):
 
 	def query_captcha(self):
 		self.command = ""
+		self.command_pos = 0
 		self.clear_cmdinput("c")
 		self.cmode = True
 		self.cstrout("captcha ")
@@ -211,16 +240,88 @@ class CommandInterpreter(threading.Thread):
 				#self.wl.get_active_window_ref().sb.setStatus("File: " + str(filename)) 
 			pass
 		
+	def cstrout_right(self):
+		# split right part of command by newlines into cmd array
+		cmd_right = self.command[self.command_pos-1:].split("\n")
 		
-	def cout(self, c):
-		self.stdscr.addstr(self.screensize_x-1, self.clinepos, c)
-		self.command += c
-		self.clinepos += 1
+		# output command and substitute \n for ¬ character
+		cmd_right_pos = self.clinepos
+		for i, line in enumerate(cmd_right):
+			self.stdscr.addstr(self.screensize_x-1, cmd_right_pos, line)
+			cmd_right_pos += len(line)
+			try:
+				if cmd_right[i+1]:
+					self.stdscr.addstr(self.screensize_x-1, cmd_right_pos, "¬")
+					cmd_right_pos+=1
+			except IndexError:
+				pass
 		
-	def cstrout(self, text):
-		self.stdscr.addstr(self.screensize_x-1, self.clinepos, text)
-		self.command += text
-		self.clinepos += len(text)
+	def cout(self, c, command_add=True):
+		try:
+			
+			if command_add:
+				
+				# FIXME if command_pos is not at the end
+				if self.command_pos != len(self.command):
+					self.command = self.command[0:self.command_pos] + c + self.command[self.command_pos:]
+
+					# split right part of command by newlines into cmd array
+					cmd_right = self.command[self.command_pos:].split("\n")
+					
+					# output command and substitute \n for ¬ character
+					cmd_right_pos = self.clinepos
+					for i, line in enumerate(cmd_right):
+						self.stdscr.addstr(self.screensize_x-1, cmd_right_pos, line)
+						cmd_right_pos += len(line)
+						try:
+							cmd_right[i+1] # throws IndexError
+							self.stdscr.addstr(self.screensize_x-1, cmd_right_pos, "¬")
+							cmd_right_pos+=1
+						except IndexError:
+							pass
+						#self.stdscr.addstr(self.screensize_x-1, self.clinepos, self.command[self.command_pos-1:])
+				else:
+					self.command += c
+					
+			self.stdscr.addstr(self.screensize_x-1, self.clinepos, c)
+			self.command_pos += 1
+							
+			if unicodedata.east_asian_width(c.decode('utf-8')) is 'W':
+				self.clinepos += 2
+# 				(y, x) = self.stdscr.getyx()
+# 				self.stdscr.move(self.screensize_x-1, 0)
+# 				self.stdscr.addstr("[ｱ]")
+# 				self.stdscr.move(y, x)
+			else:
+				self.clinepos += 1
+# 				(y, x) = self.stdscr.getyx()
+# 				self.stdscr.move(self.screensize_x-1, 0)
+# 				self.stdscr.addstr("[>]")
+# 				self.stdscr.move(y, x)
+
+# 			tmp_debug = self.command
+# 			self.dlog.msg("--DEBUG:     COMMAND: " + tmp_debug.replace("\n", "|"))
+# 			self.dlog.msg("--DEBUG: CMD_POINTER: " + " "*(self.command_pos+1) + "^" + str(self.command_pos) + "/" + str(len(self.command)))
+# 			self.dlog.msg("--DEBUG:   CHARACTER: " + self.command.decode('utf-8')[self.command_pos:self.command_pos+1])
+									
+
+
+		except (TypeError, UnicodeDecodeError, UnicodeEncodeError) as err:
+			self.dlog.excpt(err, msg=" >>>in cout()")
+		except Exception as err:
+			self.dlog.excpt(err, msg=" >>>in cout()")
+		
+		
+	def cstrout(self, text, command_add=True):
+		try:
+			
+			for letter in text.decode('utf-8'):
+				self.cout(letter.encode('utf-8'), command_add)
+				
+		except (TypeError, UnicodeDecodeError, UnicodeEncodeError) as err:
+			self.dlog.excpt(err, msg=" >>>in cstrout()")
+		except Exception as err:
+			self.dlog.excpt(err, msg=" >>>in cstrout()")
 
 
 	def cmd_history(self, count):
@@ -241,6 +342,7 @@ class CommandInterpreter(threading.Thread):
 			newPos = self.command_history_pos + count
 			if newPos >= 0 and newPos <= len(self.command_history):
 				self.command = ""
+				self.command_pos = 0
 				
 				self.command_history_pos += count
 
@@ -263,7 +365,8 @@ class CommandInterpreter(threading.Thread):
 				self.cstrout(cmd)
 				
 
-				
+		except (TypeError, UnicodeDecodeError, UnicodeEncodeError) as err:
+			self.dlog.excpt(err, msg=" >>>in cmd_history()")		
 		except:
 			pass
 	
@@ -293,11 +396,14 @@ class CommandInterpreter(threading.Thread):
 				
 
 	def exec_com(self):
-		
 		# add to command history 
 		self.cmd_history_add()
 		
+
 		cmd_args = self.command.split()
+		## FIXME don't re.match the entire command just use this:
+		#cmd = cmd_args.pop(0)
+		cmd_args_count = len(cmd_args) - 1
 		
 		if len(cmd_args) == 0:
 			return
@@ -309,7 +415,10 @@ class CommandInterpreter(threading.Thread):
 		if re.match("say", self.command):
 			self.clear_cmdinput("x")
 			cmd_args.pop(0)
-			comment = " ".join(cmd_args)
+			
+			# cut off the "say " while keeping newlines
+			comment = self.command[4:]
+			
 			# Check if executed on a BoardPad
 			active_window = self.wl.get_active_window_ref()
 			if not isinstance(active_window, BoardPad):
@@ -317,8 +426,8 @@ class CommandInterpreter(threading.Thread):
 				return
 			
 			active_thread_OP = active_window.threadno
-			self.dlog.msg("Creating post on " + str(active_window.board) + "/"
-						+ str(active_thread_OP) + " | Comment: " + comment)
+			self.dlog.msg("Creating post on >>>/" + str(active_window.board) + "/"
+						+ str(active_thread_OP) + " | Comment: " + comment, 4)
 			try:
 				active_window.post_prepare(comment=comment, filename=self.filename[0], ranger=self.filename[1])
 				self.captcha_mask = True
@@ -347,11 +456,14 @@ class CommandInterpreter(threading.Thread):
 				cmd_args.pop(0)
 				captcha = " ".join(cmd_args)
 				active_window.set_captcha(str(captcha))
-				response = active_window.post_submit()
-				active_window.update_thread()
-				self.dlog.msg("Response: " + str(response))
+				response = active_window.post_submit() # throws PostError
+				if response == 200:
+					active_window.update_thread()
+				else:
+					self.dlog.msg("Could not post comment: " + str(response), 3)
 
 			except PostReply.PostError as err:
+				#active_window.update_thread()
 				active_window.sb.setStatus(str(err))
 			except Exception as err:
 				self.dlog.msg("Can't submit captcha: " + str(err))
@@ -365,25 +477,27 @@ class CommandInterpreter(threading.Thread):
 			try:
 				setting_key = "autojoin_threads"
 				
-				cmd_args.pop(0)
+			
+				cmd_args.pop(0) # "autojoin"
 				key = cmd_args.pop(0) # also for single argument commands 
 				
-				if key == "clear":
-					self.cfg.clear(setting_key)
-					self.cfg.writeConfig()
-					
-				if key == "save":
-					# Iterate over window list
-					self.cfg.clear(setting_key)
-					for window in self.wl.get_window_list():
+				if cmd_args_count == 1:
 						
-						if isinstance(window, BoardPad):
-							# Add board and threadno of every BoardPad to config
-							self.cfg.add(setting_key, window.board, window.threadno)
+					if key == "clear" and cmd_args_count == 1:
+						self.cfg.clear(setting_key)
+						
+					elif key == "save" and cmd_args_count == 1:
+						# Iterate over window list
+						self.cfg.clear(setting_key)
+						for window in self.wl.get_window_list():
+							
+							if isinstance(window, BoardPad):
+								# Add board and threadno of every BoardPad to config
+								self.cfg.add(setting_key, window.board, window.threadno)
+					else:
+						raise IndexError
+					
 					self.cfg.writeConfig()
-				
-				if len(cmd_args) != 2:
-					self.dlog.msg("Listing autojoins - valid parameters: add <board> <thread>, remove <board> <thread>, list, save")
 					self.setting_list(setting_key)
 					return
 				
@@ -395,12 +509,26 @@ class CommandInterpreter(threading.Thread):
 				elif key == "remove":
 					self.cfg.remove(setting_key, board, threadno)
 				else:
-					self.dlog.msg("Valid parameters: add <board> <thread>, remove <board> <thread>, list")
+					raise IndexError
 					
+			except IndexError as err:
+				self.wl.compadout("Valid parameters: add <board> <thread>, remove <board> <thread>, list")
+				self.setting_list(setting_key)
+				return
 			except:
 				self.dlog.msg("Exception in CommandInterpreter.exec_com() -> autojoin")
 				raise
+		
+		# Ignore feature
+		elif re.match("ignore", self.command):
+			if cmd_args_count == 0:
+				self.wl.compadout("no ignore in list")
+				return
 				
+			try:
+				pass
+			except:
+				pass		
 		
 		# "Joining" a new thread
 		elif re.match("join", self.command):
@@ -439,11 +567,18 @@ class CommandInterpreter(threading.Thread):
 			self.wl.destroy_active_window()
 			
 		elif re.match("load", self.command):
-			self.cfg.readConfig()
+			self.readconfig()
 			
 		elif re.match("save", self.command):
 			self.cfg.writeConfig()
 			
+		elif re.match("nick", self.command):
+			cmd_args.pop(0)
+			if cmd_args:
+				self.wl.set_nickname(u' '.join(cmd_args))
+		
+		elif re.match("help", self.command):
+			self.wl.compad.usage_help()
 			
 		elif re.match("set", self.command):
 			
@@ -484,8 +619,24 @@ class CommandInterpreter(threading.Thread):
 			self.dlog.msg("Invalid command: " + self.command)
 		
 	
+	def launch_file_brower(self, options=[]):
+		try:
+			cmd = "/usr/bin/xterm"
+			# FIXME put hardcoded stuff into config
+			default_options = ['-e', '/usr/bin/ranger --choosefile="/tmp/file" ~/img/tc/img/']
+			full_cmd = [cmd] + default_options + options 
+			
+			if isinstance(full_cmd, list):
+				proc = subprocess.Popen(full_cmd)
+				#output = proc.communicate()
+			return
+		except:
+			raise
+	
+	
 	def run(self):
 		'''Loop that refreshes on input'''
+		
 		# Enable mouse events
 		# TODO returns a 2-tuple with mouse capabilities that should be processed
 		curses.mousemask(-1)  # @UndefinedVariable
@@ -544,24 +695,39 @@ class CommandInterpreter(threading.Thread):
 				
 				inputstr = ''
 				self.stdscr.nodelay(0)
+				
 				c = self.stdscr.getch()
 				#self.dlog.msg("c: " + str(c))
 				self.stdscr.nodelay(1)
 				while True:
-					if c > 256:
-						curses.ungetch(c)  # @UndefinedVariable
-						c = self.stdscr.getkey()
-						#self.dlog.msg("c (getkey): " + str(c))
-						break
-					inputstr += chr(c)
-					c = self.stdscr.getch()
-					#self.dlog.msg("also c: " + str(c))
-					#self.dlog.msg("inputstr:  " + str(inputstr))
-					if c == -1:
+					try:
+						
+						# function key pressed (such as KEY_LEFT)
+						# will be handled by getkey() instead
+						if c > 256:
+							curses.ungetch(c)  # @UndefinedVariable
+							c = self.stdscr.getkey()
+							#self.dlog.msg("c (getkey): " + str(c))
+							break
+						
+						
+						inputstr += chr(c)
+						c = self.stdscr.getch()
+# 						self.dlog.msg("also c: " + str(c))
+# 						self.dlog.msg("inputstr:  " + str(inputstr))
+						if c == -1:
+							break
+					except (TypeError, UnicodeDecodeError, UnicodeEncodeError) as err:
+						self.dlog.excpt(err, msg=" >>>in CommandInterpreter.run() -> getch loop")
 						break
 
-				if len(inputstr) == 1:
-					c = inputstr
+				
+				try:
+					if len(inputstr) == 1:
+						c = inputstr
+				except (TypeError, UnicodeDecodeError, UnicodeEncodeError) as err:
+					self.dlog.excpt(err, msg=" >>>in CommandInterpreter.run() -> assign c to inputstr")
+					
 				#elif len(inputstr) > 1:
 				#	c = -2
 				
@@ -630,41 +796,146 @@ class CommandInterpreter(threading.Thread):
 					continue			
 				### End of mouse control ###
 				
-		
+	
 				### Keys only valid in cmode ###
 				elif self.cmode or self.tmode:
 					curses.curs_set(True)  # @UndefinedVariable
 					
+# 					tmp_debug = self.command
+# 					self.dlog.msg("--DEBUG:     COMMAND: " + tmp_debug.replace("\n", "|"))
+# 					self.dlog.msg("--DEBUG: CMD_POINTER: " + " "*(self.command_pos+1) + "^" + str(self.command_pos) + "/" + str(len(self.command)))
+# 					self.dlog.msg("--DEBUG:   CHARACTER: " + self.command.decode('utf-8')[self.command_pos:self.command_pos+1])
+# 					self.dlog.msg("--DEBUG: Pos: " + str(self.command_pos))
+						
+					# Catch Meta-Keys
+					if c == -1 and len(inputstr) == 2 and ord(inputstr[0]) == 27:
+						
+						# Attach a file to post
+						if str(inputstr[1]) == 'f':
+							self.attach_file()
+						
+						# Launch File Browser
+						elif str(inputstr[1]) == 'r':
+							self.launch_file_brower()
+							
+						# Insert \n into self.command and ¬ into stdscr.addstr 	
+						elif str(inputstr[1]) == "\n":
+							# Output visible \n feedback without adding it to comment
+							if self.command_pos != len(self.command):
+								
+								# Add newline character to self.command
+								self.command = self.command[0:self.command_pos] + "\n" + self.command[self.command_pos:]
+								
+								tmp_cmd = self.command.replace('\n', '¬')
+								self.dlog.msg(tmp_cmd)
+								
+								# clear command input line
+								self.stdscr.addstr(self.screensize_x-1, 4, " "*len(self.command)) 
+								
+								# Draw newline replacement character on command line
+								if self.tmode:
+									# FIXME "say " is hardcoded into this range
+									self.stdscr.addstr(self.screensize_x-1, 4, tmp_cmd[4:])
+								elif self.cmode: 
+									self.stdscr.addstr(self.screensize_x-1, 4, tmp_cmd)
+								#self.stdscr.addstr(self.screensize_x-1, self.clinepos, cmd_tmp[self.command_pos:])
+								self.cstrout("¬", command_add=False)
+
+							else:
+								self.command += "\n"
+								self.cstrout("¬", command_add=False)
+								#self.command = self.command.decode('utf-8')[:self.command_pos] + u"\n" + self.command.decode('utf-8')[self.command_pos:]
+							
+							
+
+
+							#self.stdscr.move(self.screensize_x-1, self.clinepos)
+							
+						continue
+					
 					try:	
+						
 						# Handle keycaps, FIXME: suppress output of C-M?
+						#self.dlog.msg("--DEBUG: c/inputsr/cmd:" + str(c) + " | "+ str(inputstr) + " | " + str(self.command))
+
 						if re.match("^KEY_\w+$", c):
-							if c == "KEY_BACKSPACE":
+							if c == "KEY_BACKSPACE" or c == "KEY_LEFT":
+# 								self.dlog.msg("--DEBUG: c is KEY_BS or KEY_LEFT")
 								
 								# Delete last character after, len("[/] ") == 4 
 								if self.clinepos > 4:
-									self.command = self.command[:-1]
-									self.clinepos = self.clinepos - 1
-									self.stdscr.addstr(self.screensize_x-1, self.clinepos, " ")
+# 									self.dlog.msg("--DEBUG: clinepos > 4")
+									
+									if self.command_pos > 0:
+										self.command_pos -= 1
+									else:
+										continue
+									
+									# Need to erase two single width characters for wide unicode characters
+									try:
+
+										if unicodedata.east_asian_width(self.command.decode('utf-8')[self.command_pos:self.command_pos+1]) is 'W':
+											self.clinepos = self.clinepos - 2
+# 											self.dlog.msg("--DEBUG: WIDE WIDTH: 2")
+										else:
+											self.clinepos = self.clinepos - 1
+# 											self.dlog.msg("--DEBUG: NORM WIDTH: 1")
+									except Exception as err:
+										self.dlog.excpt(err, "--DEBUG: Exception in wide unicode char detection")
+										
+
+										
+									if c == "KEY_BACKSPACE":	
+									# FIXME keep self.command utf-8	
+										try:
+											cmd = self.command.decode('utf-8')[:self.command_pos] + self.command.decode('utf-8')[self.command_pos+1:]
+											self.command = cmd.encode('utf-8')
+										except:
+											self.dlog.msg("--DEBUG: Exception 1")
+										#self.command = self.command.encode('utf-8')
+										
+										# Redraw the command string, omit the "say " in tmode
+										
+										# clear command input line
+										self.stdscr.addstr(self.screensize_x-1, 4, " "*(self.screensize_y-5)) 
+										
+										tmp_cmd = self.command.replace('\n', '¬')
+										if self.tmode:
+											# FIXME "say " is hardcoded into this range
+											self.stdscr.addstr(self.screensize_x-1, 4, tmp_cmd[4:])
+										elif self.cmode: 
+											self.stdscr.addstr(self.screensize_x-1, 4, tmp_cmd)
+
 									self.stdscr.move(self.screensize_x-1, self.clinepos)
+									
+								continue
+								
+							elif c == "KEY_RIGHT":
+								if self.command_pos < len(self.command):
+									if unicodedata.east_asian_width(self.command.decode('utf-8')[self.command_pos-1:self.command_pos]) is 'W':
+										self.clinepos += 2
+									else:
+										self.clinepos += 1
+										
+									self.command_pos += 1
+								
+								self.stdscr.move(self.screensize_x-1, self.clinepos)
 							
 							elif c == "KEY_UP":
 								self.cmd_history(-1)
 									
 							elif c == "KEY_DOWN":
 								self.cmd_history(1)
-								
+														
 							continue
 																									
-					except TypeError:
-						pass
+					except TypeError as err:
+						self.dlog.excpt(err, msg="CommandInterpreter.run() -> cmode")
+						#pass
 					except Exception as err:
-						self.dlog.msg("CommandInterpreter.run() -> cmode: " + str(err))
+						self.dlog.excpt(err, msg="CommandInterpreter.run() -> cmode")
 						
-					# Catch Meta-Keys
-					if c == -1 and len(inputstr) == 2 and ord(inputstr[0]) == 27:
-						if str(inputstr[1]) == 'f':
-							self.attach_file()
-							continue
+
 					
 					# On Enter or ESC (27)
 					# FIXME: 27 is just the control character sequence but it works in combination with c == -1
@@ -683,6 +954,7 @@ class CommandInterpreter(threading.Thread):
 							self.cmode = False
 							self.tmode = False
 							self.command = ""
+							self.command_pos = 0
 							self.clear_cmdinput("^")
 							
 							# Reset attachment file and status
@@ -701,7 +973,7 @@ class CommandInterpreter(threading.Thread):
 							
 						
 					except Exception as e:
-						self.dlog.excpt(e)
+						self.dlog.excpt(e, msg=" >>>in CommandInterpreter.run() -> cmode")
 					
 					continue
 				### End of cmode input ###
@@ -725,10 +997,14 @@ class CommandInterpreter(threading.Thread):
 					
 				# Text input mode
 				elif c == u't':
+					if not isinstance(self.wl.get_active_window_ref(), BoardPad):
+						self.wl.compadout("/say must be used on a BoardPad")
+						continue
 					self.clear_cmdinput(">")
 					#self.stdscr.addstr(self.screensize_x-1, 0, "[>] ")
 					self.clinepos = 4
 					self.command = "say "
+					self.command_pos = len(self.command)
 					
 					try:
 						if self.postno_marked is not None:
@@ -832,7 +1108,9 @@ class CommandInterpreter(threading.Thread):
 					self.dlog.msg("Unbound key: " + str(c))
 					continue
 				
+		except (TypeError, UnicodeDecodeError) as err:
+			self.dlog.excpt(err, msg=">>>in CommandInterpreter.run()")		
 		except Exception as err:
-			self.dlog.msg("CommandInterpreter.run(): " + str(err))
+			self.dlog.excpt(err, msg=">>>in CommandInterpreter.run()")
 			pass
 	# End of run loop

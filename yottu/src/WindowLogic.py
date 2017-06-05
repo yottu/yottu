@@ -12,6 +12,8 @@ from DebugLog import DebugLog
 from CatalogPad import CatalogPad
 
 
+
+
 class WindowLogic(object):
 	'''
 	classdocs
@@ -30,12 +32,20 @@ class WindowLogic(object):
 			self.append_pad(self.compad)
 			self.set_active_window(0)
 			
-			self.nickname = "asdfasd"
+			self.nickname = ""
 			
 	#		Thread.__init__(self)
 	#		self._stop = threading.Event()
 		except:
 			raise
+
+	def set_nickname(self, value):
+		self.__nickname = value
+		for window in self.windowList:
+			window.set_nickname(self.get_nickname())
+
+	def get_nickname(self):
+		return self.__nickname 
 
 	def get_window_list(self):
 		return self.__windowList
@@ -161,6 +171,7 @@ class WindowLogic(object):
 	def end(self):
 		self.windowList[self.get_active_window()].end()
 		
+		
 	def setTitle(self, title):
 		self.title = title
 		
@@ -169,3 +180,4 @@ class WindowLogic(object):
 		
 	activeWindow = property(get_active_window, set_active_window, None, None)
 	windowList = property(get_window_list, set_window_list, None, None)
+	nickname = property(get_nickname, set_nickname, None, None)

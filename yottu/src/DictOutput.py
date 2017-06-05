@@ -20,8 +20,8 @@ class DictOutput(object):
 		self.bp = bp
 		self.tdict = {} # contains all posts (including OP)
 		self.originalpost = {} # contains the OP post
-		self.thread = ""
-		self.nickname = "asdfasd"
+		self.thread = "" # json
+		self.nickname = self.bp.get_nickname()
 		self.title = u"yottu v0.2 - https://github.com/yottu/yottu - Init: <DictOutput>".encode('utf-8')
 
 	def get_tdict(self):

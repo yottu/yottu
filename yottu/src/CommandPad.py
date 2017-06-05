@@ -30,6 +30,14 @@ class CommandPad(Pad):
 		
 	def inactive(self):
 		super(CommandPad, self).inactive()
+		
+	def usage_help(self):
+		self.addstr("Set board context: /board <board>\n")
+		self.addstr("Display Threads in current board context: /catalog [search]\n")
+		self.addstr("Open a thread in current board context: /join <thread number>\n")
+		self.addstr("Save currently open threads: /autojoin save [clear, add, remove, help]\n")
+		self.addstr("Show settings: /set\n")
+		self.addstr("Save settings: /save\n")
 	
 	def usage(self):
 		self.dlog.msg(str(self.get_position()))
@@ -37,11 +45,6 @@ class CommandPad(Pad):
 		self.addstr("\ \ / /__| |_| |_ _  _\n")
 		self.addstr(" \ V / _ \  _|  _| || |\n")
 		self.addstr("  |_|\___/\__|\__|\_,_|\n")
-		self.addstr("Yottu v0.2 - https://github.com/yottu/yottu\n", curses.A_BOLD)
+		self.addstr("Yottu v0.2 - https://github.com/yottu/yottu\n", curses.A_BOLD)  # @UndefinedVariable
 		self.addstr("\n")
-		self.addstr("Set board context: /board <board>\n")
-		self.addstr("Display Threads in current board context: /list <board> [not implemented]\n")
-		self.addstr("Open a thread in current board context: /join <thread number>\n")
-		self.addstr("Show settings: /set\n")
-		self.addstr("Save settings: /save\n")
-		
+		self.addstr("Type /help for usage\n")

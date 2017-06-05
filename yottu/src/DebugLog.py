@@ -23,10 +23,13 @@ class DebugLog(object):
 				pass		
 		
 		
-	def msg(self, message, logLevel=1):
+	def msg(self, message, logLevel=1, e=""):
 		if logLevel <= self.debugLevel:
 			self.compad(message)
-			message = str(time.clock()) + " " + message 
+			if e:
+				message = str(time.ctime()) + " " + message + " (E: " + str(type(e).__name__) + ": " + str(e) + ")"
+			else:
+				message = str(time.ctime()) + " " + message 
 						
 			try:
 				with open(self.outputFile, 'a') as fh:
@@ -34,8 +37,8 @@ class DebugLog(object):
 			except:
 				raise
 			
-	def warn(self, e, logLevel=1):
-		self.msg("Warning (" + str(logLevel) + "): " + str(type(e).__name__) + ": " + str(e), logLevel)		
+	def warn(self, e, logLevel=1, msg=""):
+		self.msg("Warning (Level " + str(logLevel) + "): " + str(type(e).__name__) + ": " + str(e) + " " + msg, logLevel)		
 			
-	def excpt(self, e, logLevel=1):
-		self.msg("Exception (" + str(logLevel) + "): " + str(type(e).__name__) + ": " + str(e), logLevel)
+	def excpt(self, e, logLevel=1, msg =""):
+		self.msg("Exception (Level " + str(logLevel) + "): " + str(type(e).__name__) + ": " + str(e) + " " + msg, logLevel)

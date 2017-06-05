@@ -122,10 +122,6 @@ class Autism:
 					f.write(imagedata)
 		except:
 			raise
-		
-		
-	def post(self, comment):
-		pass
 
 
 	# FIXME just return the content

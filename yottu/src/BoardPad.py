@@ -17,7 +17,6 @@ class BoardPad(Pad):
 		super(BoardPad, self).__init__(stdscr, wl)
 		self.board = ""
 		self.threadno = ""
-		self.nickname = ""
 		self.threadFetcher = None
 		self.postReply = None
 		self.comment = ""
@@ -77,12 +76,11 @@ class BoardPad(Pad):
 			# FIXME: Better error handling
 			self.dlog.msg("Could not display captcha, check if /usr/lib/w3m/w3mimgdisplay is installed")
 		
-	def join(self, board, threadno, nickname="asdfasd"):
+	def join(self, board, threadno, nickname):
 		self.board = board
 		self.threadno = threadno
-		self.nickname = nickname
+		self.set_nickname(nickname)
 		
-		self.sb.set_nickname(self.nickname)
 		self.sb.set_board(self.board)
 		self.sb.set_threadno(self.threadno)
 		
@@ -113,9 +111,9 @@ class BoardPad(Pad):
 		
 	def post_submit(self):
 		if self.filename:
-			response = self.postReply.post(self.comment, self.subject, self.filename, self.ranger)
+			response = self.postReply.post(self.nickname, self.comment, self.subject, self.filename, self.ranger)
 		elif self.comment:
-			response = self.postReply.post(self.comment)
+			response = self.postReply.post(self.nickname, self.comment)
 		else:
 			raise ValueError("Either filename or comment must be set.")
 		

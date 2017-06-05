@@ -90,7 +90,7 @@ class PostReply(object):
             raise
     
 
-    def post(self, comment="", subject="", file_attach="", ranger=False):
+    def post(self, nickname="", comment="", subject="", file_attach="", ranger=False):
         '''
         Note: set_captcha_solution() must be called before this method
         subject: not implemented
@@ -131,7 +131,7 @@ class PostReply(object):
         values = { 'MAX_FILE_SIZE' : ('', '4194304'),
                    'mode' : ('', 'regist'),
                    # 'pwd' : ('', 'tefF92alij2j'),
-                   'name' : ('', 'asdfasd'),
+                   'name' : ('', nickname),
                    # 'sub' : ('', ''),
                    'resto' : ('', str(self.threadno)),
                    # 'email' : ('', ''),
@@ -152,7 +152,7 @@ class PostReply(object):
             perror = re.search(r"Error: ([A-Za-z.,]\w*\s*)+", response.text).group(0)
             raise PostReply.PostError(perror)
         
-        return response
+        return response.status_code
     
     captcha_solution = property(get_captcha_solution, set_captcha_solution, None, None)
 

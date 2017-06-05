@@ -46,11 +46,23 @@ class Pad(object):
 		
 		self._active = False # Pad is actively viewed by user
 		
+		
 		self.autoScroll = True
 		self.size = 0 # Number of lines in pad
 		self.position = 0
 		self.line = ''.encode('utf-8')
 		self.marked_line = None
+		
+		self.nickname = ""
+
+	def get_nickname(self):
+		return self.__nickname
+
+
+	def set_nickname(self, value):
+		self.__nickname = value
+		self.sb.set_nickname(self.nickname)
+
 
 
 	# Updater polls this method every n seconds
@@ -138,18 +150,18 @@ class Pad(object):
 		except Exception as err:
 			self.dlog.msg("Pad.addstr() - indent != 0: " + str(err))
 			
-		
+		# Increase unread line counter on inactive windows
 		if re.search(r'\n', string):
 			if not self._active:
 				try:
-					#self.dlog.msg("Not Active: " + str(self))
 					self.wl.set_property(self, 'sb_unread', True)
 					self.wl.windowListProperties[self]['sb_lines'] += 1
 						
 					self.generate_unread_window_element()
-					
+				except KeyError:
+					pass	
 				except Exception as err:
-					self.dlog.msg("Pad.addstr() -> not self._active: " + str(err))
+					self.dlog.excpt(err, msg="Pad.addstr() -> not self._active")
 			self.auto_scroll()
 		
 	def calcline(self, line):
@@ -377,3 +389,4 @@ class Pad(object):
 		self.stdscr.refresh()
 		
 	position = property(get_position, set_position, None, None)
+	nickname = property(get_nickname, set_nickname, None, None)

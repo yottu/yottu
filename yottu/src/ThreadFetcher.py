@@ -62,7 +62,7 @@ class ThreadFetcher(threading.Thread):
 
 	def run(self):
 		dlog = DebugLog()
-		dlog.msg("ThreadFetcher: Running on /" + self.board + "/" + self.threadno, 3)
+		dlog.msg("ThreadFetcher: Running on /" + self.board + "/" + self.threadno, 4)
 		
 		try:
 			self.dictOutput = DictOutput(self.bp)
@@ -82,9 +82,9 @@ class ThreadFetcher(threading.Thread):
 				dlog.msg("ThreadFetcher: Stop signal for /" + self.board + "/" + self.threadno, 3)
 				break
 			
-			# Wait for a short time before updating
+			# Do additional things when update bit is set
 			if self._update.is_set():
-				time.sleep(1)
+				pass
 	
 			try:
 				self.sb.setStatus('')
