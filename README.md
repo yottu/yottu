@@ -11,6 +11,8 @@ _imageboard appliances for professional shitposting in an enterprise environment
 ```
 sudo aptitude install python python-requests python-bs4 w3m-img ranger libimlib2 git feh
 git clone git://github.com/yottu.yottu.git
+cd yottu/yottu
+python src/yottu.py
 ```
 
 ### Arch Linux
@@ -19,7 +21,7 @@ sudo pacman -S python python2-pip w3m ranger imlib2 git feh
 sudo pip2 install bs4 requests
 git clone git://github.com/yottu.yottu.git
 cd yottu/yottu
-python 2 src/yottu.py
+python2 src/yottu.py
 ```
 
 ## Keys
