@@ -62,7 +62,7 @@ class Statusbar(Bar):
 
 	def set_nickname(self, value):
 		self.__nickname = value
-		self.sb_name = "[" + self.nickname + "]"
+		self.sb_name = "[" + str(self.nickname) + "]"
 	
 	def calc_blank(self, len_counter):
 		# FIXME dont use hardcoded ints
@@ -82,7 +82,10 @@ class Statusbar(Bar):
 			self.sb_win = "[" + str(self.sb_windowno) + ":4chan]"
 			
 		self.sb_clock = "[" + time.strftime('%H:%M') + "]"
-		self.sb_name = "[" + self.nickname + "]"
+		if self.nickname:
+			self.sb_name = "[" + str(self.nickname) + "]"
+		else:
+			self.sb_name = "[Anon]"
 		
 		# calculate digits of the countdwon timer
 		len_counter = len(str(update_n))

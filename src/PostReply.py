@@ -98,6 +98,9 @@ class PostReply(object):
         ranger: extract path from ranger's --choosefile file
         '''
         
+        if nickname == None:
+            nickname = ""
+        
         # Read file / get mime type
         try:
             if file_attach:

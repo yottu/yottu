@@ -1,9 +1,7 @@
 '''
 Created on May 29, 2017
 
-@author: roman
 '''
-import curses
 import unicodedata
 from DebugLog import DebugLog
 

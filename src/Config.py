@@ -88,9 +88,11 @@ class Config(object):
 		try:
 			items = self.getSettings()
 			#self.dlog.msg("listing " + str(json.dumps(dict(items)[key])))
-			return json.loads(dict(items)[key])
-		except KeyError:
-			raise
+			value = dict(items)[key]
+			if value:
+				return json.loads(value)
+		except KeyError or ValueError:
+			pass
 		except:
 			raise
 

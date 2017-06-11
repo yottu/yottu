@@ -39,12 +39,15 @@ class BoardPad(Pad):
 		self.__comment = value
 
 
+	#FIXME apparently I don't need these in python, since there are no private attributes
 	def get_tdict(self):
 		return self.__tdict
-
-
 	def set_tdict(self, value):
 		self.__tdict = value
+	def get_tdict_val(self, key1, key2):
+		return self.__tdict[key1][key2]
+	def set_tdict_val(self, key1, key2, value):
+		self.__tdict[key1][key2] = value
 
 		
 	def on_resize(self):
@@ -119,6 +122,10 @@ class BoardPad(Pad):
 		
 		self.filename = None
 		self.ranger = None
+		
+		if response == 200:
+			self.threadFetcher.dictOutput.mark(self.comment)
+		
 		return response
 			
 			
@@ -129,7 +136,8 @@ class BoardPad(Pad):
 	def show_image_thumb(self, postno):
 		self.show_image(postno, False, [], True)
 		
-	def show_image(self, postno, use_external_image_viewer=False, options=[], thumb=False):
+	# FIXME as much as possible of this code should be handled by TermImage
+	def show_image(self, postno, use_external_image_viewer=False, fullscreen=False, thumb=False):
 		try:
 			postno = int(postno)
 			if not self.tdict:
@@ -166,21 +174,15 @@ class BoardPad(Pad):
 		try:
 			#yottu_image = "yottu-image" + img_ext
 			if use_external_image_viewer is True:
-				if img_ext == ".jpg" or img_ext == ".png":
-					TermImage.display_feh(img_store_filename, options, "./cache/")
-				elif img_ext == ".gif":
-					self.dlog.msg("No gif viewer configured.")
-				elif img_ext == ".webm":
-					# TODO maybe use fbdev and redirect output to /dev/null
-					# FIXME this might mess up the term in tiled wm
-					TermImage.display_mpv(img_store_filename, [], "./cache/")
-					#self.dlog.msg("No webm viewer configured.")
+				TermImage.display_ext(img_store_filename, fullscreen=fullscreen, path="./cache/")
+				
 			else:
 				if img_ext == ".jpg" or img_ext == ".png" or img_ext == ".gif":
 					TermImage.display(img_store_filename, "./cache/")
+					
 				else:
-#					self.statusbar.msg("File not viewable.")
 					self.dlog.msg(img_ext + " filename not viewable.")
+					
 		except Exception as err:
 			self.dlog.msg("Exception in TermImage call: " + str(err))
 			

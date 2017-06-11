@@ -18,17 +18,19 @@ from ConfigParser import NoOptionError
 import sys
 import unicodedata
 import subprocess
+from __builtin__ import isinstance
+from CatalogPad import CatalogPad
 
 class CommandInterpreter(threading.Thread):
 	def __init__(self, stdscr, wl):
 		
 		self.stdscr = stdscr
 		self.wl = wl
-		self.screensize_x = 0
 		self.screensize_y = 0
+		self.screensize_x = 0
 		
-		self.screensize_x, self.screensize_y = self.stdscr.getmaxyx()
-		self.stdscr.addstr(self.screensize_x-1, 0, "[^] ")
+		self.screensize_y, self.screensize_x = self.stdscr.getmaxyx()
+		self.stdscr.addstr(self.screensize_y-1, 0, "[^] ")
 		
 		
 		Thread.__init__(self)
@@ -48,7 +50,7 @@ class CommandInterpreter(threading.Thread):
 		self.command_pos = 0 # position of cursor in command
 		self.command_cached = None
 		self.context = "int" # context in which command is executed # Overwritten by readconfig()
-		self.postno_marked = None # Currently marked postino
+		self.postno_marked = None # Currently marked postno
 		self.filename = (None, None) # Tuple holding path and ranger mode bool
 		
 		curses.curs_set(False)  # @UndefinedVariable
@@ -75,7 +77,7 @@ class CommandInterpreter(threading.Thread):
 			self.wl.set_nickname(self.nickname)
 
 		
-		except KeyError or NoOptionError as err:
+		except KeyError or NoOptionError or ValueError as err:
 			self.dlog.warn(err, 3)
 			pass
 			
@@ -86,7 +88,7 @@ class CommandInterpreter(threading.Thread):
 		finally:
 			# Set defaults
 			if not self.context: self.context = "g"
-			if not self.nickname: self.wl.set_nickname(' ')
+			if not self.nickname: self.wl.set_nickname(None)
 		
 	# FIXME: context not saved, ConfigParser limited to one string (one thread)
 	# FIXME: key value should actually assign values to keys {'threadno': 12345, 'board': 'int'} 
@@ -100,7 +102,7 @@ class CommandInterpreter(threading.Thread):
 					#self.dlog.msg(str(kv.items()[0][0]))
 					board = kv.items()[0][0]
 					thread = kv.values()[0]
-					self.dlog.msg("Joining thread: >>>" + board + ">" + thread)
+					self.dlog.msg("Joining thread: >>>/" + board + "/" + thread)
 					self.wl.join_thread(board, thread)
 		except Exception:
 			pass
@@ -118,20 +120,20 @@ class CommandInterpreter(threading.Thread):
 		try:
 			self.stdscr.clear()
 			self.stdscr.refresh()
-			self.screensize_x, self.screensize_y = self.stdscr.getmaxyx();
+			self.screensize_y, self.screensize_x = self.stdscr.getmaxyx();
 			
 			self.wl.on_resize()
 	
-			self.stdscr.move(self.screensize_x-1, 0)
+			self.stdscr.move(self.screensize_y-1, 0)
 			self.stdscr.clrtoeol()
 			if self.command != "":
 				if self.tmode:
-					self.stdscr.addstr(self.screensize_x-1, 0, "[>] " + self.command[4:])
+					self.stdscr.addstr(self.screensize_y-1, 0, "[>] " + self.command[4:])
 				elif self.cmode:
-					self.stdscr.addstr(self.screensize_x-1, 0, "[/] " + self.command)
+					self.stdscr.addstr(self.screensize_y-1, 0, "[/] " + self.command)
 			else:
-				self.stdscr.addstr(self.screensize_x-1, 0, "[^] ")
-			self.stdscr.move(self.screensize_x-1, self.clinepos)
+				self.stdscr.addstr(self.screensize_y-1, 0, "[^] ")
+			self.stdscr.move(self.screensize_y-1, self.clinepos)
 		except Exception as err:
 			self.dlog.msg("CommandInterpreter.on_resize(): " + str(err))
 
@@ -145,13 +147,10 @@ class CommandInterpreter(threading.Thread):
 		''' TODO: Implement validity matching logic '''
 		return string.split()
 	
-	def show_image_marked(self, ext=False, options=[]):
+	def show_image_marked(self, ext=False, fullscreen=False):
 		try:
 			if self.postno_marked:
-				if ext is True:
-					self.wl.get_active_window_ref().show_image(self.postno_marked, True, options)
-				else:
-					self.wl.get_active_window_ref().show_image(self.postno_marked)
+					self.wl.get_active_window_ref().show_image(self.postno_marked, use_external_image_viewer=ext, fullscreen=fullscreen)
 		except HTTPError as err:
 				self.wl.get_active_window_ref().sb.setStatus("Image: " + str(err.code))
 		except Exception as err:
@@ -194,13 +193,13 @@ class CommandInterpreter(threading.Thread):
 		self.cmode = True
 		self.cstrout("captcha ")
 
-	def clear_cmdinput(self, status_char):
+	def clear_cmdinput(self, status_char="^"):
 		# save current position 
 		#(y, x) = self.stdscr.getyx()
 			
 		# clear line
 		cmd_text = "[" + status_char + "] "
-		self.stdscr.move(self.screensize_x-1, 0)
+		self.stdscr.move(self.screensize_y-1, 0)
 		self.stdscr.clrtoeol()
 		self.stdscr.addstr(cmd_text)
 		self.clinepos = len(cmd_text)
@@ -227,14 +226,14 @@ class CommandInterpreter(threading.Thread):
 				self.filename = (None, None)
 				
 				(y, x) = self.stdscr.getyx()
-				self.stdscr.move(self.screensize_x-1, 0)
+				self.stdscr.move(self.screensize_y-1, 0)
 				self.stdscr.addstr("[>] ")
 				#self.wl.get_active_window_ref().sb.setStatus("File: None")
 				self.stdscr.move(y, x)
 			else:
 				self.filename = (filename, True)
 				(y, x) = self.stdscr.getyx()
-				self.stdscr.move(self.screensize_x-1, 0)
+				self.stdscr.move(self.screensize_y-1, 0)
 				self.stdscr.addstr("[F] ")
 				self.stdscr.move(y, x)
 				#self.wl.get_active_window_ref().sb.setStatus("File: " + str(filename)) 
@@ -247,11 +246,11 @@ class CommandInterpreter(threading.Thread):
 		# output command and substitute \n for ¬ character
 		cmd_right_pos = self.clinepos
 		for i, line in enumerate(cmd_right):
-			self.stdscr.addstr(self.screensize_x-1, cmd_right_pos, line)
+			self.stdscr.addstr(self.screensize_y-1, cmd_right_pos, line)
 			cmd_right_pos += len(line)
 			try:
 				if cmd_right[i+1]:
-					self.stdscr.addstr(self.screensize_x-1, cmd_right_pos, "¬")
+					self.stdscr.addstr(self.screensize_y-1, cmd_right_pos, "¬")
 					cmd_right_pos+=1
 			except IndexError:
 				pass
@@ -271,11 +270,11 @@ class CommandInterpreter(threading.Thread):
 					# output command and substitute \n for ¬ character
 					cmd_right_pos = self.clinepos
 					for i, line in enumerate(cmd_right):
-						self.stdscr.addstr(self.screensize_x-1, cmd_right_pos, line)
+						self.stdscr.addstr(self.screensize_y-1, cmd_right_pos, line)
 						cmd_right_pos += len(line)
 						try:
 							cmd_right[i+1] # throws IndexError
-							self.stdscr.addstr(self.screensize_x-1, cmd_right_pos, "¬")
+							self.stdscr.addstr(self.screensize_y-1, cmd_right_pos, "¬")
 							cmd_right_pos+=1
 						except IndexError:
 							pass
@@ -283,19 +282,19 @@ class CommandInterpreter(threading.Thread):
 				else:
 					self.command += c
 					
-			self.stdscr.addstr(self.screensize_x-1, self.clinepos, c)
+			self.stdscr.addstr(self.screensize_y-1, self.clinepos, c)
 			self.command_pos += 1
 							
 			if unicodedata.east_asian_width(c.decode('utf-8')) is 'W':
 				self.clinepos += 2
 # 				(y, x) = self.stdscr.getyx()
-# 				self.stdscr.move(self.screensize_x-1, 0)
+# 				self.stdscr.move(self.screensize_y-1, 0)
 # 				self.stdscr.addstr("[ｱ]")
 # 				self.stdscr.move(y, x)
 			else:
 				self.clinepos += 1
 # 				(y, x) = self.stdscr.getyx()
-# 				self.stdscr.move(self.screensize_x-1, 0)
+# 				self.stdscr.move(self.screensize_y-1, 0)
 # 				self.stdscr.addstr("[>]")
 # 				self.stdscr.move(y, x)
 
@@ -382,12 +381,40 @@ class CommandInterpreter(threading.Thread):
 
 	def line_marked(self):
 		try:
-			postno = self.wl.get_active_window_ref().get_post_no_of_marked_line()
+			activeWindow = self.wl.get_active_window_ref()
+			postno = activeWindow.get_post_no_of_marked_line()
 			
 			# FIXME postno_marked should be an attribute of bp
 			self.postno_marked = postno
-			if postno:
+			if postno and isinstance(activeWindow, BoardPad):
+				# Don't display help when command line is in usage
+				if not self.cmode:
+					image_filename = activeWindow.tdict[int(self.postno_marked)]['filename']
+					post_is_me = activeWindow.tdict[int(self.postno_marked)]['marked']
+					if post_is_me:
+						mark = "un[m]ark"
+					else:
+						mark = "[m]ark"
+					
+					# generate help text
+					help_text = "Post: " + mark + " as own"
+					if image_filename:
+						help_text = "Image: [v]iew, [f]eh/ext ([F]ullscreen) - " + help_text 
+
+					# align right	
+					help_text = (self.screensize_x-5-len(help_text))*" " + help_text
+					
+					self.stdscr.addstr(self.screensize_y-1, 4, help_text[:self.screensize_x-5] )
+
 				self.wl.get_active_window_ref().show_image_thumb(self.postno_marked)
+			elif postno and isinstance(activeWindow, CatalogPad):
+				self.wl.join_thread(activeWindow.board, self.postno_marked)
+				
+			else:
+				# Clear help message
+				if not self.cmode:
+					self.clear_cmdinput()
+				
 			
 
 		except Exception as err:
@@ -623,7 +650,7 @@ class CommandInterpreter(threading.Thread):
 		try:
 			cmd = "/usr/bin/xterm"
 			# FIXME put hardcoded stuff into config
-			default_options = ['-e', '/usr/bin/ranger --choosefile="/tmp/file" ~/img/tc/img/']
+			default_options = ['-e', '/usr/bin/ranger --choosefile="/tmp/file" ~/img/']
 			full_cmd = [cmd] + default_options + options 
 			
 			if isinstance(full_cmd, list):
@@ -632,6 +659,22 @@ class CommandInterpreter(threading.Thread):
 			return
 		except:
 			raise
+	
+	
+	# Toggle post as user's for easy (You)s 
+	def claim_post_toggle(self):
+		activeWindow = self.wl.get_active_window_ref()
+		
+		if self.postno_marked:
+			tdict_marked = activeWindow.tdict[int(self.postno_marked)]['marked']
+			
+			if tdict_marked == False:
+				
+				activeWindow.tdict[int(self.postno_marked)]['marked'] = True
+				activeWindow.sb.setStatus("Post marked.")
+			else:
+				activeWindow.tdict[int(self.postno_marked)]['marked'] = False
+				activeWindow.sb.setStatus("Post no longer marked.")
 	
 	
 	def run(self):
@@ -681,7 +724,7 @@ class CommandInterpreter(threading.Thread):
 				
 				
 				# moves cursor to current position 
-				#self.stdscr.move(self.screensize_x-1, self.clinepos)
+				#self.stdscr.move(self.screensize_y-1, self.clinepos)
 				if self.cmode:
 					curses.curs_set(True)  # @UndefinedVariable
 					
@@ -782,6 +825,7 @@ class CommandInterpreter(threading.Thread):
 							# FIXME generalize for all pads
 							try: 
 								self.line_marked()
+								
 							except:
 									pass
 							
@@ -830,15 +874,15 @@ class CommandInterpreter(threading.Thread):
 								self.dlog.msg(tmp_cmd)
 								
 								# clear command input line
-								self.stdscr.addstr(self.screensize_x-1, 4, " "*len(self.command)) 
+								self.stdscr.addstr(self.screensize_y-1, 4, " "*len(self.command)) 
 								
 								# Draw newline replacement character on command line
 								if self.tmode:
 									# FIXME "say " is hardcoded into this range
-									self.stdscr.addstr(self.screensize_x-1, 4, tmp_cmd[4:])
+									self.stdscr.addstr(self.screensize_y-1, 4, tmp_cmd[4:])
 								elif self.cmode: 
-									self.stdscr.addstr(self.screensize_x-1, 4, tmp_cmd)
-								#self.stdscr.addstr(self.screensize_x-1, self.clinepos, cmd_tmp[self.command_pos:])
+									self.stdscr.addstr(self.screensize_y-1, 4, tmp_cmd)
+								#self.stdscr.addstr(self.screensize_y-1, self.clinepos, cmd_tmp[self.command_pos:])
 								self.cstrout("¬", command_add=False)
 
 							else:
@@ -849,9 +893,17 @@ class CommandInterpreter(threading.Thread):
 							
 
 
-							#self.stdscr.move(self.screensize_x-1, self.clinepos)
+							#self.stdscr.move(self.screensize_y-1, self.clinepos)
 							
 						continue
+					
+					# Unicode character 'DELETE' 0x7f
+					try:
+						if ord(c) == 127:
+							c = "KEY_BACKSPACE"
+					except:
+						pass
+					
 					
 					try:	
 						
@@ -897,16 +949,16 @@ class CommandInterpreter(threading.Thread):
 										# Redraw the command string, omit the "say " in tmode
 										
 										# clear command input line
-										self.stdscr.addstr(self.screensize_x-1, 4, " "*(self.screensize_y-5)) 
+										self.stdscr.addstr(self.screensize_y-1, 4, " "*(self.screensize_x-5)) 
 										
 										tmp_cmd = self.command.replace('\n', '¬')
 										if self.tmode:
 											# FIXME "say " is hardcoded into this range
-											self.stdscr.addstr(self.screensize_x-1, 4, tmp_cmd[4:])
+											self.stdscr.addstr(self.screensize_y-1, 4, tmp_cmd[4:])
 										elif self.cmode: 
-											self.stdscr.addstr(self.screensize_x-1, 4, tmp_cmd)
+											self.stdscr.addstr(self.screensize_y-1, 4, tmp_cmd)
 
-									self.stdscr.move(self.screensize_x-1, self.clinepos)
+									self.stdscr.move(self.screensize_y-1, self.clinepos)
 									
 								continue
 								
@@ -919,7 +971,7 @@ class CommandInterpreter(threading.Thread):
 										
 									self.command_pos += 1
 								
-								self.stdscr.move(self.screensize_x-1, self.clinepos)
+								self.stdscr.move(self.screensize_y-1, self.clinepos)
 							
 							elif c == "KEY_UP":
 								self.cmd_history(-1)
@@ -960,7 +1012,7 @@ class CommandInterpreter(threading.Thread):
 							# Reset attachment file and status
 							self.filename = (None, None)
 							#self.wl.get_active_window_ref().sb.setStatus("")
-							#self.stdscr.addstr(self.screensize_x-1, 0, "[T] ")
+							#self.stdscr.addstr(self.screensize_y-1, 0, "[T] ")
 							curses.curs_set(False)  # @UndefinedVariable
 
 						# If user input is not \n or ESC write it to command bar
@@ -991,7 +1043,7 @@ class CommandInterpreter(threading.Thread):
 				# Command input mode
 				elif c == u'/' or c == u'i':
 					self.clear_cmdinput("/")
-					#self.stdscr.addstr(self.screensize_x-1, 0, "[/] ")
+					#self.stdscr.addstr(self.screensize_y-1, 0, "[/] ")
 					self.clinepos = 4
 					self.cmode = True
 					
@@ -1001,7 +1053,7 @@ class CommandInterpreter(threading.Thread):
 						self.wl.compadout("/say must be used on a BoardPad")
 						continue
 					self.clear_cmdinput(">")
-					#self.stdscr.addstr(self.screensize_x-1, 0, "[>] ")
+					#self.stdscr.addstr(self.screensize_y-1, 0, "[>] ")
 					self.clinepos = 4
 					self.command = "say "
 					self.command_pos = len(self.command)
@@ -1020,9 +1072,13 @@ class CommandInterpreter(threading.Thread):
 					self.show_image_marked()
 				elif c == u'f':
 					# View image in external viewer
-					self.show_image_marked(True)
+					self.show_image_marked(ext=True)
 				elif c == u'F':
-					self.show_image_marked(True, ['--fullscreen'])
+					self.show_image_marked(ext=True, fullscreen=True)
+				
+				elif c == u'm':
+					''' sets the (You) flag to replies of marked post '''
+					self.claim_post_toggle()
 				
 				elif c == u'w':
 					self.wl.moveup()
@@ -1035,7 +1091,10 @@ class CommandInterpreter(threading.Thread):
 						self.wl.get_active_window_ref().update_thread()
 					except:
 						continue
-					
+				# Part
+				elif c == u'x':
+					if self.wl.get_active_window() != 0:
+						self.wl.destroy_active_window()
 					
 				# change pad	
 				elif c == u'1':

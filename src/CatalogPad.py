@@ -12,6 +12,7 @@ class CatalogPad(Pad):
     def __init__(self, stdscr, wl):
         super(CatalogPad, self).__init__(stdscr, wl)
         self.catalogFetcher = None
+        self.board = None
         
     def stop(self):
         self.catalogFetcher.stop()
@@ -34,8 +35,8 @@ class CatalogPad(Pad):
         except:
             raise
         
-        
     def join(self, board, search=""):
+        self.board = board
         self.catalogFetcher = CatalogFetcher(self.stdscr, board, self, search)
         self.catalogFetcher.setDaemon(True)
         self.catalogFetcher.start()

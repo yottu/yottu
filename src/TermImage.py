@@ -5,6 +5,9 @@ Created on May 15, 2017
 '''
 from subprocess import call
 import subprocess
+from wx import FULLSCREEN_ALL
+from compiler.pycodegen import EXCEPT
+from sqlalchemy.sql.expression import except_
 
 
 
@@ -41,13 +44,38 @@ class TermImage(object):
             TermImage.run_w3mimgdisplay(w3m_args)
         except:
             raise
+        
+    @staticmethod
+    def display_ext(filename, fullscreen=False, path="./"):
+        ''' Automatically chooses best external viewer (hopefully) '''
+        args = [filename, fullscreen, path]
+        
+        # get file extension from filename
+        file_ext = filename.split(".").pop().lower()
+        
+        if file_ext == "jpg" or file_ext == "png":
+            TermImage.display_img(*args)
+            
+        if file_ext == "gif":
+            TermImage.display_gif(*args)
+            
+        if file_ext == "webm":
+            TermImage.display_webm(*args)
+            
+        else:
+            raise LookupError("No viewer for file extension configured: " + file_ext)
     
     @staticmethod        
-    def display_feh(filename, options=[], path="./"):
+    def display_img(filename, fullscreen=False, path="./"):
         ''' Returns: (stdoutdata, stderrdata)'''
         try:
             cmd = "feh"
             default_options = ['--auto-zoom']
+            
+            options = []
+            if fullscreen:
+                options.append('-F')
+            
             full_cmd = [cmd] + default_options + options + [path+filename]
             
             if isinstance(full_cmd, list):
@@ -59,17 +87,43 @@ class TermImage(object):
             raise
         
     @staticmethod        
-    def display_mpv(filename, options=[], path="./"):
+    def display_webm(filename, fullscreen=False, path="./"):
         ''' Returns: (stdoutdata, stderrdata)'''
         try:
             cmd = "mpv"
-            default_options = ['-fs', '--no-terminal']
+            default_options = ['--no-terminal']
+            
+            options = []
+            if fullscreen:
+                options.append('-fs')
+            
             full_cmd = [cmd] + default_options + options + [path+filename]
             
             if isinstance(full_cmd, list):
                         proc = subprocess.Popen(full_cmd)
             #output = proc.communicate()
-            
             return
+        
         except:
             raise
+            
+    @staticmethod        
+    def display_gif(filename, fullscreen=False, path="./"):
+        ''' Returns: (stdoutdata, stderrdata)'''
+        try:
+            cmd = "sxiv"
+            default_options = ['-q'] # quiet
+            
+            
+            options = []
+            if fullscreen:
+                options = ['-f', '-sf', '-S1'] # fullscreen, scale to fit screen, loop
+            
+            full_cmd = [cmd] + default_options + options + [path+filename]
+            
+            if isinstance(full_cmd, list):
+                        proc = subprocess.Popen(full_cmd)
+            #output = proc.communicate()
+        except:
+            raise
+            

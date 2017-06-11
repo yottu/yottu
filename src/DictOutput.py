@@ -22,6 +22,8 @@ class DictOutput(object):
 		self.originalpost = {} # contains the OP post
 		self.thread = "" # json
 		self.nickname = self.bp.get_nickname()
+		self.comment_tbm = None
+		self.comment_tbm_timeout = 0
 		self.title = u"yottu v0.2 - https://github.com/yottu/yottu - Init: <DictOutput>".encode('utf-8')
 
 	def get_tdict(self):
@@ -30,6 +32,14 @@ class DictOutput(object):
 
 	def set_tdict(self, value):
 		self.__tdict = value
+		
+	def mark(self, comment):
+		''' look for comment to be marked as user post in the next n refreshes '''
+		self.comment_tbm_timeout = 3 # is decreased every refresh
+		self.comment_tbm = comment
+		self.comment_tbm = re.sub('>>(\d+)', '\g<1>', self.comment_tbm)
+		self.comment_tbm = re.sub('\n', ' ', self.comment_tbm)
+		
 
 		
 	def refresh(self, json):
@@ -102,8 +112,10 @@ class DictOutput(object):
 				com = posts['com']
 				com = re.sub('<br>', ' ', com)
 				refposts = ""
+				# save all post quotes in a list (without >>)
 				refposts = re.findall('&gt;&gt;(\d+)', com)
-				com = re.sub('&gt;&gt;(\d+)', '\g<1> ', com)
+				# remove >> from quotes for now
+				com = re.sub('&gt;&gt;(\d+)', '\g<1>', com)
 				#com = re.sub('&#039;', '\'', com)
 				#com = re.sub('&gt;', '>', com)
 				#com = re.sub('&lt;', '<', com)
@@ -130,11 +142,29 @@ class DictOutput(object):
 			except:
 				ext = ""
 				file_ext_short = " "
+				
+			# Compare comment content to recently posted comment
+			try:
+				marked = False
+				if self.comment_tbm_timeout > 0:
+					
+					debug.msg("com: " + str(com) + " tbm: " + str(self.comment_tbm))
+					# TODO regex match with n percentage accuracy should work better
+					if com == self.comment_tbm:
+						marked = True
+						self.comment_tbm = None
+						self.comment_tbm_timeout = 0
+						
+					self.comment_tbm_timeout -= 1
+				
+			except:
+				pass
 	
 	
+			# TODO maybe just use the structure from 4chan's json. Maybe.
 			self.tdict[no] = {'country':country, 'name':name, 'time':time,
 							'com':com, 'trip':trip, 'color':color, 'filename':filename,
-							'tim':tim, 'ext':ext }
+							'tim':tim, 'ext':ext, 'marked':marked }
 	
 #			try:
 #				line = u' '.join((time, ">>" + str(no), country, "<" + name + ">", com)).encode('utf-8')
@@ -162,8 +192,13 @@ class DictOutput(object):
 				indent = len(time)+len(str(no))+len(country)+4
 	
 				# Make own nickname bold
-				if re.match(self.nickname, name) is not None:
-					self.bp.addstr(" < " + self.nickname + "> ", curses.A_BOLD)  # @UndefinedVariable
+				if re.match(str(self.nickname), name) or marked:
+					
+					if not self.nickname:
+						nick = "Anonymous"
+					else:
+						nick = self.nickname
+					self.bp.addstr(" < " + nick + "> ", curses.A_BOLD)  # @UndefinedVariable
 	
 				# Make name decoration stand out if file is attached
 				else:
@@ -205,7 +240,7 @@ class DictOutput(object):
 								self.bp.addstr(">>" + word + " ", curses.color_pair(refcolor), indent)  # @UndefinedVariable
 								
 								# Add (You) to referenced posts written by self.nickname
-								if re.match(self.tdict[int(word)]['name'], self.nickname):
+								if re.match(self.tdict[int(word)]['name'], str(self.nickname)) or self.tdict[int(word)]['marked'] == True:
 									self.bp.addstr("(You) ", curses.A_BOLD | curses.color_pair(221), indent, mentioned=True)  # @UndefinedVariable
 									try:
 										Notifier.send(name, com)

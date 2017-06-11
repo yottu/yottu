@@ -104,14 +104,14 @@ class WindowLogic(object):
 		activeWindowRef = self.get_active_window_ref()
 		self.dlog.msg("Parting window " + str(activeWindow))
 		if activeWindow > 0:
-			self.raise_window(0)
+			self.raise_window(activeWindow-1)
 			
 			try:
 				activeWindowRef.stop()
 				self.windowList.remove(activeWindowRef)
 				self.windowListProperties.pop(activeWindowRef)
 			except Exception, err:
-				self.dlog.excpt(err)++-2
+				self.dlog.excpt(err)
 			
 	def get_window(self, window):
 		'''Returns the index number of the arg'''
