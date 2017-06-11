@@ -4,7 +4,6 @@ import time
 Created on Sep 28, 2015
 
 '''
-from email import message
 
 class DebugLog(object):
 

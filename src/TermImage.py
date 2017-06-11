@@ -5,10 +5,6 @@ Created on May 15, 2017
 '''
 from subprocess import call
 import subprocess
-from wx import FULLSCREEN_ALL
-from compiler.pycodegen import EXCEPT
-from sqlalchemy.sql.expression import except_
-
 
 
 class TermImage(object):
