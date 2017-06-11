@@ -10,7 +10,7 @@ _imageboard appliances for professional shitposting in an enterprise environment
 sudo aptitude install python python-requests python-bs4 w3m-img \
                       libimlib2 ranger feh xterm mpv sxiv
 git clone git://github.com/yottu/yottu.git
-cd yottu/yottu
+cd yottu/
 python src/yottu.py
 ```
 
@@ -19,7 +19,7 @@ python src/yottu.py
 sudo pacman -S python python2-pip w3m ranger imlib2 git feh
 sudo pip2 install bs4 requests
 git clone git://github.com/yottu/yottu.git
-cd yottu/yottu
+cd yottu/
 python2 src/yottu.py
 ```
 
