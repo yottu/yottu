@@ -2,10 +2,10 @@
 import curses
 import locale
 
-from DebugLog import DebugLog
-from CommandInterpreter import CommandInterpreter
-from WindowLogic import WindowLogic
-from Updater import Updater
+from lib.DebugLog import DebugLog
+from lib.CommandInterpreter import CommandInterpreter
+from lib.WindowLogic import WindowLogic
+from lib.Updater import Updater
 import sys
 from time import sleep
 
