@@ -5,12 +5,11 @@ Created on Oct 5, 2015
 from threading import Thread
 from DictOutput import DictOutput
 from Autism import Autism
+from DebugLog import DebugLog
+
 import curses
-from Statusbar import Statusbar
 import time
 import threading
-from Titlebar import Titlebar
-from DebugLog import DebugLog
 import urllib2
 
 class ThreadFetcher(threading.Thread):
@@ -20,6 +19,8 @@ class ThreadFetcher(threading.Thread):
 		self.board = board
 		self.bp = bp
 		self.nickname = nickname
+		self.contentFetcher = Autism(self.board, self.threadno)
+
 		
 		self.sb = self.bp.sb
 		self.tb = self.bp.tb
@@ -29,6 +30,7 @@ class ThreadFetcher(threading.Thread):
 		self.tdict = {}
 		self.dictOutput = ""
 		self.update_n = 9
+		
 		Thread.__init__(self)
 		self._stop = threading.Event()
 		self._update = threading.Event()
@@ -59,6 +61,12 @@ class ThreadFetcher(threading.Thread):
 		self.sb.on_resize()
 		self.tb.on_resize()
 		
+	def save_image(self, *args, **kwargs):
+		try:
+			return self.contentFetcher.save_image(*args, **kwargs)
+		except:
+			raise
+			
 
 	def run(self):
 		dlog = DebugLog()
@@ -66,7 +74,6 @@ class ThreadFetcher(threading.Thread):
 		
 		try:
 			self.dictOutput = DictOutput(self.bp)
-			getThread = Autism(self.board, self.threadno)
 		except Exception as e:
 			dlog.excpt(e)
 			self.stdscr.addstr(0, 0, str(e), curses.A_REVERSE)  # @UndefinedVariable
@@ -88,24 +95,33 @@ class ThreadFetcher(threading.Thread):
 	
 			try:
 				self.sb.setStatus('')
-				getThread.setstdscr(self.stdscr)
-				getThread.get()
-				thread = getattr(getThread, "jsoncontent")
+				self.contentFetcher.setstdscr(self.stdscr)
+				self.contentFetcher.get()
+				thread = getattr(self.contentFetcher, "jsoncontent")
 				self.dictOutput.refresh(thread)
 				self.bp.set_tdict(self.dictOutput.get_tdict())
 				
+				
 				if self._active:
 					self.tb.set_title(self.dictOutput.getTitle())
-				if self.update > 9:
+					
+				# reset interval on thread refresh
+				if self.update_n > 9:
 					self.update_n = 9
-				elif self.update > 3:
-					self.update -= 1
+					
+				# decrease interval on highly active threads
+				elif self.update_n > 1:
+					self.update_n -= 1
 				
 			except urllib2.HTTPError as e:
+				
+				# stop updating if thread 404'd
 				if e.code == 404:
 					self.sb.setStatus(str(e))
 					dlog.excpt(e)
 					break
+				
+				# increase update interval on stale thread 
 				elif e.code == 304:
 					if self.update_n < 20:
 						self.update_n += 1

@@ -83,9 +83,16 @@ class PostReply(object):
             f.write(self.captcha_image)
 
     def display_captcha(self):
+        # Overlay the captcha in the terminal
         try:
-            pass
             TermImage.display(self.captcha_image_filename)
+            return True
+        except:
+            pass
+        # On failure fall back to using the external image viewer
+        try:
+            TermImage.display_img(self.captcha_image_filename)
+            return False
         except:
             raise
     
@@ -128,25 +135,25 @@ class PostReply(object):
         #url = 'http://httpbin.org/status/404'
         #url = "http://localhost/" + self.board + "/post"
         #url = 'http://httpbin.org/post'
-        #Hurl = "https://requestb.in/18qz8kd1"
+        #url = "https://requestb.in/1i5x10t1"
 
 
-        values = { 'MAX_FILE_SIZE' : ('', '4194304'),
-                   'mode' : ('', 'regist'),
+        values = { 'MAX_FILE_SIZE' : (None, '4194304'),
+                   'mode' : (None, 'regist'),
                    # 'pwd' : ('', 'tefF92alij2j'),
-                   'name' : ('', nickname),
+                   'name' : (None, nickname),
                    # 'sub' : ('', ''),
-                   'resto' : ('', str(self.threadno)),
+                   'resto' : (None, str(self.threadno)),
                    # 'email' : ('', ''),
-                   'com' : ('', comment),
-                   'recaptcha_challenge_field' : ('', self.captcha_challenge),
-                   'recaptcha_response_field' : ('', self.captcha_solution),
+                   'com' : (None, comment),
+                   'recaptcha_challenge_field' : (None, self.captcha_challenge),
+                   'recaptcha_response_field' : (None, self.captcha_solution),
                    'upfile' : (filename, filedata, content_type)
                  }
         
         headers = { 'User-Agent' : 'Mozilla/5.0 (X11; Linux x86_64)' }
         
-#        session = requests.session()
+        session = requests.session()
         response = requests.post(url, headers=headers, files=values) 
         
         # raise exception on error code

@@ -147,10 +147,10 @@ class CommandInterpreter(threading.Thread):
 		''' TODO: Implement validity matching logic '''
 		return string.split()
 	
-	def show_image_marked(self, ext=False, fullscreen=False):
+	def show_image_marked(self, **kwargs):
 		try:
 			if self.postno_marked:
-					self.wl.get_active_window_ref().show_image(self.postno_marked, use_external_image_viewer=ext, fullscreen=fullscreen)
+					self.wl.get_active_window_ref().show_image(self.postno_marked, **kwargs)
 		except HTTPError as err:
 				self.wl.get_active_window_ref().sb.setStatus("Image: " + str(err.code))
 		except Exception as err:
@@ -399,7 +399,7 @@ class CommandInterpreter(threading.Thread):
 					# generate help text
 					help_text = "Post: " + mark + " as own"
 					if image_filename:
-						help_text = "Image: [v]iew, [f]eh/ext ([F]ullscreen) - " + help_text 
+						help_text = "Image: [v]iew, [f]eh/ext ([F]ullscreen), [b]g - " + help_text 
 
 					# align right	
 					help_text = (self.screensize_x-5-len(help_text))*" " + help_text
@@ -780,6 +780,7 @@ class CommandInterpreter(threading.Thread):
 					self.on_resize()
 					continue
 				
+				
 				# Scroll
 				elif c == 'KEY_HOME':
 					self.wl.home()
@@ -851,19 +852,25 @@ class CommandInterpreter(threading.Thread):
 # 					self.dlog.msg("--DEBUG:   CHARACTER: " + self.command.decode('utf-8')[self.command_pos:self.command_pos+1])
 # 					self.dlog.msg("--DEBUG: Pos: " + str(self.command_pos))
 						
-					# Catch Meta-Keys
+					# Catch Meta-Keys // tmode
 					if c == -1 and len(inputstr) == 2 and ord(inputstr[0]) == 27:
 						
-						# Attach a file to post
-						if str(inputstr[1]) == 'f':
-							self.attach_file()
+						alt_key = str(inputstr[1])
 						
+						# Attach a file to post
+						if str(alt_key) == 'f':
+							self.attach_file()
+
 						# Launch File Browser
-						elif str(inputstr[1]) == 'r':
+						elif str(alt_key) == 'r':
 							self.launch_file_brower()
 							
+						# Quit yottu
+						elif str(alt_key) == 'q':
+							self.terminate = 1
+							
 						# Insert \n into self.command and ¬ into stdscr.addstr 	
-						elif str(inputstr[1]) == "\n":
+						elif str(alt_key) == "\n":
 							# Output visible \n feedback without adding it to comment
 							if self.command_pos != len(self.command):
 								
@@ -889,7 +896,10 @@ class CommandInterpreter(threading.Thread):
 								self.command += "\n"
 								self.cstrout("¬", command_add=False)
 								#self.command = self.command.decode('utf-8')[:self.command_pos] + u"\n" + self.command.decode('utf-8')[self.command_pos:]
-							
+								
+						# Alt+1-0, Alt+n, Alt+p 		
+						elif self.change_window(alt_key):
+							continue	
 							
 
 
@@ -1035,11 +1045,7 @@ class CommandInterpreter(threading.Thread):
 				
 				elif c == 'KEY_DOWN':
 					self.wl.movedown()
-							
-				# Quit application
-				elif c == u'q':
-					self.terminate = 1
-				
+											
 				# Command input mode
 				elif c == u'/' or c == u'i':
 					self.clear_cmdinput("/")
@@ -1075,6 +1081,10 @@ class CommandInterpreter(threading.Thread):
 					self.show_image_marked(ext=True)
 				elif c == u'F':
 					self.show_image_marked(ext=True, fullscreen=True)
+					
+				# Set image as wallpaper	
+				elif c == u'b':
+					self.show_image_marked(ext=True, setbg=True)
 				
 				elif c == u'm':
 					''' sets the (You) flag to replies of marked post '''
@@ -1084,7 +1094,9 @@ class CommandInterpreter(threading.Thread):
 					self.wl.moveup()
 				elif c == u's':
 					self.wl.movedown()
-				
+					
+				elif c == u'D':
+					self.wl.get_active_window_ref().download_images()
 				# Refresh thread	
 				elif c == u'r':
 					try:
@@ -1096,72 +1108,22 @@ class CommandInterpreter(threading.Thread):
 					if self.wl.get_active_window() != 0:
 						self.wl.destroy_active_window()
 					
-				# change pad	
-				elif c == u'1':
-					try:
-						self.wl.raise_window(0)
-					except:
-						raise
-				elif c == u'2':
-					try:
-						self.wl.raise_window(1)
-					except:
-						raise
-				elif c == u'3':
-					try:
-						self.wl.raise_window(2)
-					except:
-						raise
-				elif c == u'4':
-					try:
-						self.wl.raise_window(3)
-					except:
-						raise
-				elif c == u'5':
-					try:
-						self.wl.raise_window(4)
-					except:
-						raise
-				elif c == u'6':
-					try:
-						self.wl.raise_window(5)
-					except:
-						raise
-				elif c == u'7':
-					try:
-						self.wl.raise_window(6)
-					except:
-						raise
-				elif c == u'8':
-					try:
-						self.wl.raise_window(7)
-					except:
-						raise
-				elif c == u'9':
-					try:
-						self.wl.raise_window(8)
-					except:
-						raise
-				elif c == u'0':
-					try:
-						self.wl.raise_window(9)
-					except:
-						raise
-				elif c == u'3':
-					try:
-						self.wl.raise_window(2)
-					except:
-						raise
-				elif c == u'n':
-					try:
-						self.wl.next() #TODO: implement in wl
-					except:
-						raise
-				elif c == u'p':
-					try:
-						self.wl.prev() #TODO: implement in wl
-					except:
-						raise
+					
+				elif self.change_window(c):
+					continue
+
+				
+				# Catch Meta-Keys // Global
+				elif c == -1 and len(inputstr) == 2 and ord(inputstr[0]) == 27:
+					
+					alt_key = str(inputstr[1])
+					
+					# Quit yottu
+					if alt_key == 'q':
+						self.terminate = 1
+						
+					elif self.change_window(alt_key):
+						continue
 				
 				else:
 					self.dlog.msg("Unbound key: " + str(c))
@@ -1173,3 +1135,30 @@ class CommandInterpreter(threading.Thread):
 			self.dlog.excpt(err, msg=">>>in CommandInterpreter.run()")
 			pass
 	# End of run loop
+	
+	def change_window(self, c):
+		''' Defines keys to change the window with '''
+		try:
+			
+			if c == u'n':
+				self.wl.next() #TODO: implement in wl
+				return True
+				
+			elif c == u'p':
+				self.wl.prev() #TODO: implement in wl
+				return True
+			
+			else: 
+				for i in range(0, 9):
+					if c == u''.join(str(i)):
+						if i == 0:
+							self.wl.raise_window(9)
+							return True
+						else:
+							self.wl.raise_window(i-1)
+							return True
+						
+			
+		except Exception as err:
+			self.dlog.excpt(err)
+			raise

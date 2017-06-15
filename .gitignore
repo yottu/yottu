@@ -1,3 +1,16 @@
+*.pyc
+*.jpg
+*.png
+*.gif
+*.webm
+cache/
+debug.log
+!screenshot.png
+.project
+.settings
+.pydevproject
+
+## Python .gitignore
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -48,28 +61,3 @@ coverage.xml
 
 # Translations
 *.mo
-/Autism.pyc
-/BoardPad.pyc
-/CommandInterpreter.pyc
-/DebugLog.pyc
-/DictOutput.pyc
-/MLStripper.pyc
-/Notifier.pyc
-/Statusbar.pyc
-/ThreadFetcher.pyc
-/CatalogFetcher.pyc
-/CatalogOutput.pyc
-/CommandPad.pyc
-/Config.pyc
-/yottu.pyc
-/WindowLogic.pyc
-/Pad.pyc
-/CatalogPad.pyc
-/debug.log
-/yottu-captcha.jpg
-/Updater.pyc
-/Bar.pyc
-/kill.sh
-/PostReply.pyc
-/TermImage.pyc
-/Titlebar.pyc

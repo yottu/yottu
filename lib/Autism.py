@@ -6,7 +6,6 @@ import curses
 import os
 from StringIO import StringIO
 import gzip
-from urllib2 import HTTPError
 
 class Autism:
 	def __init__(self, board, threadno="catalog", domain="a.4cdn.org"):
@@ -61,7 +60,7 @@ class Autism:
 
 				socket.setdefaulttimeout(timeout) # TODO user setting
 			
-				if (self.lasttime != ""):
+				if (source != "image" and self.lasttime != ""):
 					request.add_header('If-Modified-Since', self.lasttime)
 				
 				# Fetch data and store into content
@@ -92,7 +91,7 @@ class Autism:
 							continue
 						
 					#self.dlog.msg("ContentFetcher: Data transmission from >>>/" + self.board + "/" + self.threadno + "/ (" + str((len(content)+len(data))/1024) + "K)", 3)
-					
+				
 				if source == "board":
 					self.lasttime = datastream.headers.get('Last-Modified')
 				
@@ -107,10 +106,28 @@ class Autism:
 				raise
 			break
 		
-	def save_image(self, filename, target_filename):
+	def save_image(self, img_tim, img_ext, orig_filename, thumb=False):
 		try:
-			target_path = "./cache/"
-			
+			target_path = "./cache/" # FIXME should be set through Config.py
+			thumb_path = "./cache/thumbs/"
+			target_ext = img_ext.lower()
+		
+		
+			try:
+				
+				# Thumbnails always have a .jpg extension
+				if thumb:
+					target_filename = self.board + "-" + img_tim[:64] + "s.jpg"
+					filename = str(img_tim)+"s.jpg"
+					target_path = thumb_path
+					
+				else:
+					target_filename = self.board + "-" + img_tim[:64] + "-" + orig_filename + target_ext
+					filename = str(img_tim+img_ext)
+					
+			except:
+				raise
+				
 			# Create path if it doesn't exist
 			if not os.path.isdir(target_path):
 				os.makedirs(target_path)
@@ -120,8 +137,13 @@ class Autism:
 				imagedata = self._query("image", filename)
 				with open(target_path + target_filename, "wb") as f:
 					f.write(imagedata)
+					
+			return target_filename
+	
 		except:
 			raise
+		
+		
 
 
 	# FIXME just return the content

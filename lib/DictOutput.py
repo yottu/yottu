@@ -194,11 +194,11 @@ class DictOutput(object):
 				# Make own nickname bold
 				if re.match(str(self.nickname), name) or marked:
 					
-					if not self.nickname:
-						nick = "Anonymous"
-					else:
-						nick = self.nickname
-					self.bp.addstr(" < " + nick + "> ", curses.A_BOLD)  # @UndefinedVariable
+# 					if not self.nickname:
+# 						nick = "Anonymous"
+# 					else:
+# 						nick = self.nickname
+					self.bp.addstr(" <" + file_ext_short + name + "> ", curses.A_BOLD)  # @UndefinedVariable
 	
 				# Make name decoration stand out if file is attached
 				else:

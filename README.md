@@ -35,7 +35,9 @@ python2 yottu.py
 ```
 w 		- 	scroll up (Alt: Cursor up)
 s 		- 	scroll down (Alt: Curser down)
-q 		-	quit
+r		-	refresh thread
+D		-	download all images
+Alt+q 		-	quit
 x		-	close window
 p, n 		- 	previous/next window
 1-0 		-	switch to window 1-10

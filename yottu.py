@@ -7,7 +7,6 @@ from lib.CommandInterpreter import CommandInterpreter
 from lib.WindowLogic import WindowLogic
 from lib.Updater import Updater
 import sys
-from time import sleep
 
 locale.setlocale(locale.LC_ALL, '')
 

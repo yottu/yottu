@@ -8,6 +8,7 @@ from PostReply import PostReply
 from DebugLog import DebugLog
 from TermImage import TermImage
 from Autism import Autism
+import thread
 
 class BoardPad(Pad):
 	'''
@@ -74,10 +75,10 @@ class BoardPad(Pad):
 		
 	def display_captcha(self):
 		try:
-			self.postReply.display_captcha()
+			if not self.postReply.display_captcha():
+				self.dlog.msg("w3mimgdisplay: Could not overlay captcha")
 		except:
-			# FIXME: Better error handling
-			self.dlog.msg("Could not display captcha, check if /usr/lib/w3m/w3mimgdisplay is installed")
+			self.dlog.msg("Could not display captcha. Check if w3mimgdisplay and feh are installed.")
 		
 	def join(self, board, threadno, nickname):
 		self.board = board
@@ -134,10 +135,10 @@ class BoardPad(Pad):
 		self.threadFetcher.update()
 		
 	def show_image_thumb(self, postno):
-		self.show_image(postno, False, [], True)
+		self.show_image(postno, ext=False, thumb=True)
 		
-	# FIXME as much as possible of this code should be handled by TermImage
-	def show_image(self, postno, use_external_image_viewer=False, fullscreen=False, thumb=False):
+		
+	def show_image(self, postno, ext=False, fullscreen=False, thumb=False, setbg=False):
 		try:
 			postno = int(postno)
 			if not self.tdict:
@@ -145,6 +146,7 @@ class BoardPad(Pad):
 			
 			img_ext =  str(self.get_tdict()[postno]['ext']) # image extension, eg ".jpg"
 			img_tim = str(self.get_tdict()[postno]['tim'])  # Actual filename as saved on server
+			orig_filename = str(self.get_tdict()[postno]['filename']) # Uploaders filename
 			
 			# Return if post has no image attached
 			if not img_ext or not img_tim:
@@ -153,32 +155,21 @@ class BoardPad(Pad):
 		except Exception as err: 
 			self.dlog.msg("BoardPad: Exception in assembling filename name: " + str(err))
 			raise
-		
-		# Convert to lower case for later comparison
-		img_store_ext = img_ext.lower()
-		
-		if thumb:
-			img_store_filename = self.board + "-" + img_tim[:64] + "s.jpg"
-		else:
-			img_store_filename = self.board + "-" + img_tim[:64] + img_store_ext
-		
-		# FIXME ContentFetcher should probably only be called through ThreadFetcher since it is blocking 
-		try:
-			if thumb:
-				self.contentFetcher.save_image(str(img_tim+"s.jpg"), img_store_filename)
-			else:
-				self.contentFetcher.save_image(str(img_tim+img_ext), img_store_filename)
-		except:
-			raise
+
+		target_filename = self.threadFetcher.save_image(img_tim, img_ext, orig_filename, thumb=thumb)
 		
 		try:
-			#yottu_image = "yottu-image" + img_ext
-			if use_external_image_viewer is True:
-				TermImage.display_ext(img_store_filename, fullscreen=fullscreen, path="./cache/")
+			# use external viewer (e.g. feh)
+			if ext is True:
+				TermImage.display_ext(target_filename, fullscreen=fullscreen, path="./cache/", setbg=setbg)
 				
 			else:
 				if img_ext == ".jpg" or img_ext == ".png" or img_ext == ".gif":
-					TermImage.display(img_store_filename, "./cache/")
+					file_path = "./cache/"
+					if thumb:
+						file_path += "thumbs/"
+
+					TermImage.display(target_filename, file_path)
 					
 				else:
 					self.dlog.msg(img_ext + " filename not viewable.")
@@ -186,7 +177,27 @@ class BoardPad(Pad):
 		except Exception as err:
 			self.dlog.msg("Exception in TermImage call: " + str(err))
 			
-			
+	def download_images(self):
+		Pad.download_images(self)
+		try:
+			for postno, values in self.tdict.items():
+				img_tim = str(values['tim'])
+				img_ext = values['ext']
+				orig_filename = values['filename'][:64]
+				if not img_ext or not img_tim or not orig_filename:
+					continue
+				
+				# FIXME too many parallel downloads
+				thread.start_new_thread(self.threadFetcher.save_image, (img_tim, img_ext, orig_filename))
+				
+		except (KeyError, TypeError) as err:
+			self.dlog.excpt(err, msg=">>>in BoardPad.download_images()")
+			pass
+		except Exception as err:
+			self.dlog.excpt(err, msg=">>>in BoardPad.download_images()")
+			pass
+		
+				
 	
 	tdict = property(get_tdict, set_tdict, None, None)
 	comment = property(get_comment, set_comment, None, None)

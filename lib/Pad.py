@@ -388,5 +388,8 @@ class Pad(object):
 		self.set_position(self.get_position())
 		self.stdscr.refresh()
 		
+	def download_images(self):
+		pass
+		
 	position = property(get_position, set_position, None, None)
 	nickname = property(get_nickname, set_nickname, None, None)

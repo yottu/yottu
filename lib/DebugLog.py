@@ -26,9 +26,9 @@ class DebugLog(object):
 		if logLevel <= self.debugLevel:
 			self.compad(message)
 			if e:
-				message = str(time.ctime()) + " " + message + " (E: " + str(type(e).__name__) + ": " + str(e) + ")"
+				message = str(time.ctime()) + " " + str(message) + " (E: " + str(type(e).__name__) + ": " + str(e) + ")"
 			else:
-				message = str(time.ctime()) + " " + message 
+				message = str(time.ctime()) + " " + str(message) 
 						
 			try:
 				with open(self.outputFile, 'a') as fh:

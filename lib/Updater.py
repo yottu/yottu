@@ -10,6 +10,7 @@ from DebugLog import DebugLog
 import curses
 
 class Updater(threading.Thread):
+    ''' Class solely handles detecting resizes # TODO figure out a better way '''
     
     def __init__(self, stdscr, wl):
         self.stdscr = stdscr

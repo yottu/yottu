@@ -5,6 +5,7 @@ Created on May 15, 2017
 '''
 from subprocess import call
 import subprocess
+import os
 
 
 class TermImage(object):
@@ -25,6 +26,12 @@ class TermImage(object):
             return output
         except:
             raise
+    
+    @staticmethod
+    def exec_cmd(full_cmd):
+        if isinstance(full_cmd, list):
+            with open(os.devnull, 'w') as f:
+                proc = subprocess.Popen(full_cmd, stdout=f, stderr=subprocess.STDOUT)
         
     @staticmethod
     def display(filename, path="./"):
@@ -42,48 +49,53 @@ class TermImage(object):
             raise
         
     @staticmethod
-    def display_ext(filename, fullscreen=False, path="./"):
+    def display_ext(filename, **kwargs):
         ''' Automatically chooses best external viewer (hopefully) '''
-        args = [filename, fullscreen, path]
         
         # get file extension from filename
         file_ext = filename.split(".").pop().lower()
         
         if file_ext == "jpg" or file_ext == "png":
-            TermImage.display_img(*args)
+            TermImage.display_img(filename, **kwargs)
             
-        if file_ext == "gif":
-            TermImage.display_gif(*args)
+        elif file_ext == "gif":
+            TermImage.display_gif(filename, **kwargs)
             
-        if file_ext == "webm":
-            TermImage.display_webm(*args)
+        elif file_ext == "webm":
+            TermImage.display_webm(filename, **kwargs)
             
         else:
             raise LookupError("No viewer for file extension configured: " + file_ext)
     
     @staticmethod        
-    def display_img(filename, fullscreen=False, path="./"):
-        ''' Returns: (stdoutdata, stderrdata)'''
+    def display_img(filename, fullscreen=False, path="./", setbg=False):
+        
         try:
             cmd = "feh"
-            default_options = ['--auto-zoom']
+            default_options = ['-q'] # quiet
             
-            options = []
+            options = ['--auto-zoom']
             if fullscreen:
-                options.append('-F')
+                options.append('-D-5 -F') # -D-5=Slideshow delay, -F=fullscreen
             
-            full_cmd = [cmd] + default_options + options + [path+filename]
+            options.append('--start-at') # 
+            options_post = [path] # needed to browse other images in path
             
-            if isinstance(full_cmd, list):
-                        proc = subprocess.Popen(full_cmd)
-            #output = proc.communicate()
+            if setbg:
+                options = ['--bg-max']
+                options_post = []
             
+            full_cmd = [cmd] + default_options + options + [path+filename] + options_post
+            
+            TermImage.exec_cmd(full_cmd)
             return
+            
+            
         except:
             raise
         
     @staticmethod        
-    def display_webm(filename, fullscreen=False, path="./"):
+    def display_webm(filename, fullscreen=False, path="./", **unused):
         ''' Returns: (stdoutdata, stderrdata)'''
         try:
             cmd = "mpv"
@@ -95,16 +107,14 @@ class TermImage(object):
             
             full_cmd = [cmd] + default_options + options + [path+filename]
             
-            if isinstance(full_cmd, list):
-                        proc = subprocess.Popen(full_cmd)
-            #output = proc.communicate()
+            TermImage.exec_cmd(full_cmd)
             return
         
         except:
             raise
             
     @staticmethod        
-    def display_gif(filename, fullscreen=False, path="./"):
+    def display_gif(filename, fullscreen=False, path="./", **unused):
         ''' Returns: (stdoutdata, stderrdata)'''
         try:
             cmd = "sxiv"
@@ -117,9 +127,9 @@ class TermImage(object):
             
             full_cmd = [cmd] + default_options + options + [path+filename]
             
-            if isinstance(full_cmd, list):
-                        proc = subprocess.Popen(full_cmd)
-            #output = proc.communicate()
+            TermImage.exec_cmd(full_cmd)
+            return
+            
         except:
             raise
             
