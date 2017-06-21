@@ -77,4 +77,5 @@ Left Mouse Button 		- mark line, displays thumb
 	f 			- windowed feh
 	F 			- fullscreen feh
 	t 			- reply to post number
+	b			- set image as background (requires feh)
 ```

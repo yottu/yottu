@@ -76,7 +76,7 @@ class TermImage(object):
             
             options = ['--auto-zoom']
             if fullscreen:
-                options.append('-D-5 -F') # -D-5=Slideshow delay, -F=fullscreen
+                options += ['-D-5', '-F'] # -D-5=Slideshow delay, -F=fullscreen
             
             options.append('--start-at') # 
             options_post = [path] # needed to browse other images in path

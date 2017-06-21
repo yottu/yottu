@@ -9,6 +9,7 @@ from DebugLog import DebugLog
 from TermImage import TermImage
 from Autism import Autism
 import thread
+import time
 
 class BoardPad(Pad):
 	'''
@@ -26,6 +27,8 @@ class BoardPad(Pad):
 		self.ranger = False # If true filename contains path to actual filename
 		self.tdict = {}
 		self.contentFetcher = None
+		self.time_last_posted_thread = 0 # Time last post was made in this thread
+		# self.time_last_posted_board = None # Time last posted on board #TODO
 		self.dlog = DebugLog(self)
 		
 	class NoDictError(Exception):
@@ -97,6 +100,7 @@ class BoardPad(Pad):
 		self.threadFetcher.start()
 		
 		self.postReply = PostReply(self.board, self.threadno)
+		self.postReply.dictOutput = self.threadFetcher.dictOutput # Needed for marking own comments
 		
 	def post_prepare(self, comment="", filename=None, ranger=False, subject=""):
 		self.comment = comment
@@ -114,10 +118,17 @@ class BoardPad(Pad):
 		self.postReply.set_captcha_solution(captcha)
 		
 	def post_submit(self):
-		if self.filename:
-			response = self.postReply.post(self.nickname, self.comment, self.subject, self.filename, self.ranger)
+		wait = self.time_last_posted_thread + 60 - int(time.time())
+		if self.filename and wait > 0:
+			thread.start_new_thread(self.postReply.defer, (wait,), dict(nickname=self.nickname, comment=self.comment, subject=self.subject, file_attach=self.filename, ranger=self.ranger))
+			response = ("deferred", wait)
+		elif self.filename:
+			response = self.postReply.post(nickname=self.nickname, comment=self.comment, subject=self.subject, file_attach=self.filename, ranger=self.ranger)
+		elif self.comment and wait > 0:
+			thread.start_new_thread(self.postReply.defer, (wait,), dict(nickname=self.nickname, comment=self.comment))
+			response = ("deferred", wait)
 		elif self.comment:
-			response = self.postReply.post(self.nickname, self.comment)
+			response = self.postReply.post(nickname=self.nickname, comment=self.comment)
 		else:
 			raise ValueError("Either filename or comment must be set.")
 		
@@ -125,8 +136,10 @@ class BoardPad(Pad):
 		self.ranger = None
 		
 		if response == 200:
-			self.threadFetcher.dictOutput.mark(self.comment)
-		
+			#self.threadFetcher.dictOutput.mark(self.comment)
+			self.time_last_posted_thread = int(time.time()) # TODO this timer is intra/interthread/board specific
+			# TODO for loop that iterates over BoardPads with the same board and sets time_last_posted_board to int(time.time())
+			
 		return response
 			
 			

@@ -14,6 +14,9 @@ import mimetypes
 
 import warnings
 import os.path
+import time
+import thread
+from DebugLog import DebugLog
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 class PostReply(object):
@@ -28,11 +31,17 @@ class PostReply(object):
         self.sitekey = "6Ldp2bsSAAAAAAJ5uyx_lx34lJeEpTLVkP5k04qc"
         self.captcha_url = "https://www.google.com/recaptcha/api/noscript"
         self.captcha_image_base_url = "https://www.google.com/recaptcha/api/"
-        self.captcha_challenge = ""
+        
         self.captcha_image = ""
         self.captcha_image_filename = "yottu-captcha.jpg"
-
+        
+        self.captcha_challenge = ""
         self.captcha_solution = ""
+        
+        self.lock = thread.allocate_lock()
+        self.dictOutput = None
+        
+        self.dlog = DebugLog()
         
     class PostError(Exception):
         def __init__(self,*args,**kwargs):
@@ -96,14 +105,45 @@ class PostReply(object):
         except:
             raise
     
+    def defer(self, time_wait, **kwargs):
+        ''' wait for timer to run out before posting '''
+        captcha_challenge = self.captcha_challenge
+        captcha_solution = self.captcha_solution
+        self.dlog.msg("Waiting C: " + captcha_solution + str(kwargs))
+        #self.dictOutput.bp.sb.setStatus("Deferring comment: " + str(time_wait) + "s")
+        
+        
+        self.lock.acquire()
+        self.dlog.msg("Lock acquired C: " + captcha_solution + str(kwargs))
+        
+        try:   
+            while time_wait > 0:
+                time.sleep(time_wait)
+                # get new lastpost value and see if post needs to be deferred further
+                time_wait = self.dictOutput.bp.time_last_posted_thread + 60 - int(time.time()) 
+        
+            kwargs.update(dict(captcha_challenge=captcha_challenge, captcha_solution=captcha_solution))
+            self.dlog.msg("Now posting: C: " + captcha_solution + str(kwargs))
+            rc = self.post(**kwargs)
+            if rc != 200:
+                self.dictOutput.bp.sb.setStatus("Deferred comment was not posted: " + str(rc))
+        except Exception as err:
+            self.dictOutput.bp.sb.setStatus("Deferred: " + str(err))
+            pass
+        finally:
+            self.lock.release()
+        
 
-    def post(self, nickname="", comment="", subject="", file_attach="", ranger=False):
+    def post(self, nickname="", comment="", subject="", file_attach="", ranger=False, captcha_challenge="", captcha_solution=""):
         '''
-        Note: set_captcha_solution() must be called before this method
         subject: not implemented
         file_attach: (/path/to/file.ext) will be uploaded as "file" + extension
         ranger: extract path from ranger's --choosefile file
         '''
+        
+        if not captcha_challenge or not captcha_solution:
+            captcha_challenge = self.captcha_challenge
+            captcha_solution = self.captcha_solution
         
         if nickname == None:
             nickname = ""
@@ -161,6 +201,11 @@ class PostReply(object):
         if re.search("is_error = \"true\"", response.text):
             perror = re.search(r"Error: ([A-Za-z.,]\w*\s*)+", response.text).group(0)
             raise PostReply.PostError(perror)
+        
+        if response.status_code == 200 and self.dictOutput:
+            self.dictOutput.mark(comment)
+            self.dictOutput.bp.time_last_posted_thread = int(time.time())
+        
         
         return response.status_code
     

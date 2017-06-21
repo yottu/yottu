@@ -8,7 +8,7 @@ import DebugLog
 import os
 import json
 from os.path import expanduser
-from ConfigParser import NoSectionError, DuplicateSectionError, NoOptionError
+from ConfigParser import NoSectionError, DuplicateSectionError
 
 
 class Config(object):

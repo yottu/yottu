@@ -6,9 +6,10 @@ from Bar import Bar
 
 class Statusbar(Bar):
 
-	def __init__(self, stdscr, nickname="", board="", threadno=""):
+	def __init__(self, stdscr, wl, nickname="", board="", threadno=""):
 		super(Statusbar, self).__init__(stdscr)
 		
+		self.wl = wl
 		self.sb_status = ""
 		self.sb_blank = 0
 		self.sb_windowno = "X"
@@ -18,6 +19,8 @@ class Statusbar(Bar):
 		self.threadno = threadno
 		
 		self.nickname = nickname
+		
+		self.clinepos = 1 # command line character position 
 		
 		self.screensize_y, self.screensize_x = stdscr.getmaxyx();
 
@@ -74,7 +77,7 @@ class Statusbar(Bar):
 
 				
 			
-	def draw(self, update_n=""):
+	def draw(self, update_n="", wait_n=""):
 		self.sb_clock = "[" + time.strftime('%H:%M') + "]"
 		if self.board:
 			self.sb_win = "[" + str(self.sb_windowno) + ":4chan/"+ self.board + "/" + self.threadno + "]"
@@ -87,9 +90,11 @@ class Statusbar(Bar):
 		else:
 			self.sb_name = "[Anon]"
 		
-		# calculate digits of the countdwon timer
-		len_counter = len(str(update_n))
-		self.calc_blank(len_counter)
+		# calculate digits of the countdown timers
+		counter = str(update_n)
+		if wait_n:
+			counter = str(wait_n) + "|" + counter
+		self.calc_blank(len(counter))
 		
 		
 		try:
@@ -118,11 +123,15 @@ class Statusbar(Bar):
 					
 			
 			# Add fill blanks, status code area and refresh count down		
-			statusbar_text_tail = u' '.join((" "*self.sb_blank, self.sb_status, str(update_n)))
+			statusbar_text_tail = u' '.join((" "*self.sb_blank, self.sb_status, counter))
 			self.stdscr.addstr(statusbar_text_tail, curses.color_pair(1))  # @UndefinedVariable
 			
 			# TODO cursor needs to be moved to the string (clinepos) of ci # does it really?
-			self.stdscr.move(self.screensize_y-1, 1)
+			if self.wl.ci:
+				clinepos = self.wl.ci.clinepos
+			else:
+				clinepos = 1
+			self.stdscr.move(self.screensize_y-1, clinepos)
 			self.stdscr.refresh()
 			
 		except Exception as err:
@@ -131,7 +140,6 @@ class Statusbar(Bar):
 			#quit(self.stdscr)
 		
 		return
-
 	
 	def setStatus(self, status):
 		''' sets Status text located right most before n_update '''

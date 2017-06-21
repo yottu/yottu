@@ -39,5 +39,7 @@ class DebugLog(object):
 	def warn(self, e, logLevel=1, msg=""):
 		self.msg("Warning (Level " + str(logLevel) + "): " + str(type(e).__name__) + ": " + str(e) + " " + msg, logLevel)		
 			
-	def excpt(self, e, logLevel=1, msg =""):
-		self.msg("Exception (Level " + str(logLevel) + "): " + str(type(e).__name__) + ": " + str(e) + " " + msg, logLevel)
+	def excpt(self, e, logLevel=1, msg="", cn=""):
+		if cn:
+			cn += ": "
+		self.msg("Exception (Level " + str(logLevel) + "): " + cn + str(type(e).__name__) + ": " + str(e) + " " + msg, logLevel)

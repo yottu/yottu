@@ -37,7 +37,7 @@ class Pad(object):
 		self.actualpmaxy = self.pmaxy-Pad.padbuffersize
 		
 		self.tb = Titlebar(self.stdscr)
-		self.sb = Statusbar(self.stdscr, "(<Pad>)")
+		self.sb = Statusbar(self.stdscr, self.wl, nickname="(<Pad>)")
 		
 		self.dlog = DebugLog("debug.log")
 		

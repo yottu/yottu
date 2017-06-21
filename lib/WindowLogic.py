@@ -6,8 +6,6 @@ This class is for creating a CommandPad and managing BoardPads
 '''
 from CommandPad import CommandPad
 from BoardPad import BoardPad
-import threading
-from threading import Thread
 from DebugLog import DebugLog
 from CatalogPad import CatalogPad
 
@@ -27,7 +25,7 @@ class WindowLogic(object):
 			self.windowList = [] # Array of all window objects (i.e. Pads)
 			self.windowListProperties =  {} # Associating a window object with its properties
 			
-			
+			self.ci = None
 			self.compad = CommandPad(stdscr, self)
 			self.append_pad(self.compad)
 			self.set_active_window(0)

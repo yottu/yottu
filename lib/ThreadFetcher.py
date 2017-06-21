@@ -146,9 +146,13 @@ class ThreadFetcher(threading.Thread):
 				
 				try:
 					if self._active:
-						self.sb.draw(update_n)
+						wait_n = self.bp.time_last_posted_thread + 60 - int(time.time()) 
+						if wait_n > 0:
+							self.sb.draw(update_n=update_n, wait_n=wait_n)
+						else:
+							self.sb.draw(update_n)
 				except Exception as e:
-					dlog.excpt(e)
+					dlog.excpt(e, cn=self.__class__.__name__)
 					pass
 				
 

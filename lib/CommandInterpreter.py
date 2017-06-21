@@ -20,12 +20,14 @@ import unicodedata
 import subprocess
 from __builtin__ import isinstance
 from CatalogPad import CatalogPad
+import time
 
 class CommandInterpreter(threading.Thread):
 	def __init__(self, stdscr, wl):
 		
 		self.stdscr = stdscr
 		self.wl = wl
+		self.wl.ci = self
 		self.screensize_y = 0
 		self.screensize_x = 0
 		
@@ -52,6 +54,7 @@ class CommandInterpreter(threading.Thread):
 		self.context = "int" # context in which command is executed # Overwritten by readconfig()
 		self.postno_marked = None # Currently marked postno
 		self.filename = (None, None) # Tuple holding path and ranger mode bool
+		self.time_last_posted = 0
 		
 		curses.curs_set(False)  # @UndefinedVariable
 		self.terminate = 0
@@ -61,7 +64,6 @@ class CommandInterpreter(threading.Thread):
 		self.command_history_pos = -1
 		
 		self.nickname = ""
-		
 		self.readconfig()
 		
 		self.autojoin()
@@ -484,10 +486,15 @@ class CommandInterpreter(threading.Thread):
 				captcha = " ".join(cmd_args)
 				active_window.set_captcha(str(captcha))
 				response = active_window.post_submit() # throws PostError
+				
+				# Post succeeded
 				if response == 200:
 					active_window.update_thread()
+					self.time_last_posted = int(time.time())
+				elif isinstance(response, tuple):
+					self.dlog.msg("Deferred comment: " + str(response), 3)
 				else:
-					self.dlog.msg("Could not post comment: " + str(response), 3)
+					self.dlog.msg("Could not post comment for " + str(response[1]) + " seconds.", 3)
 
 			except PostReply.PostError as err:
 				#active_window.update_thread()
@@ -845,7 +852,7 @@ class CommandInterpreter(threading.Thread):
 				### Keys only valid in cmode ###
 				elif self.cmode or self.tmode:
 					curses.curs_set(True)  # @UndefinedVariable
-					
+												
 # 					tmp_debug = self.command
 # 					self.dlog.msg("--DEBUG:     COMMAND: " + tmp_debug.replace("\n", "|"))
 # 					self.dlog.msg("--DEBUG: CMD_POINTER: " + " "*(self.command_pos+1) + "^" + str(self.command_pos) + "/" + str(len(self.command)))

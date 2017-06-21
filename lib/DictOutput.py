@@ -155,6 +155,7 @@ class DictOutput(object):
 						self.comment_tbm = None
 						self.comment_tbm_timeout = 0
 						
+					self.bp.threadFetcher.update_n = 3
 					self.comment_tbm_timeout -= 1
 				
 			except:
