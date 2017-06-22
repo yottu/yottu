@@ -410,7 +410,11 @@ class CommandInterpreter(threading.Thread):
 
 				self.wl.get_active_window_ref().show_image_thumb(self.postno_marked)
 			elif postno and isinstance(activeWindow, CatalogPad):
-				self.wl.join_thread(activeWindow.board, self.postno_marked)
+				activeWindow.unmarkline()
+				self.postno_marked = None
+				self.wl.join_thread(activeWindow.board, postno)
+				
+				
 				
 			else:
 				# Clear help message
@@ -569,10 +573,26 @@ class CommandInterpreter(threading.Thread):
 			
 			try:
 				joinThread = re.sub('>', '', cmd_args[1])
-				self.wl.join_thread(self.context, joinThread)
-				self.wl.compadout("Joining /" + self.context + "/" + cmd_args[1])
+				
+				board = False
+				
+				# Directly join thread if integer was given 
+				if isinstance(joinThread, int):
+					self.wl.join_thread(self.context, joinThread)
+				
+				else:
+					joinThread = joinThread.split("/")
+					search = joinThread.pop()
+					
+					if joinThread:
+						board = joinThread.pop()
+					
+					self.wl.catalog(board or self.context, search)
+				
 			except IndexError:
 				self.wl.compadout("Usage: /join <thread number>")
+				self.wl.compadout("       /join <board/search string>")
+				self.wl.compadout("       /join <search string>")
 			except:
 				raise
 			
@@ -1114,6 +1134,10 @@ class CommandInterpreter(threading.Thread):
 				elif c == u'x':
 					if self.wl.get_active_window() != 0:
 						self.wl.destroy_active_window()
+						
+				# Catalog
+				elif c == u'c':
+					self.wl.catalog(self.context)
 					
 					
 				elif self.change_window(c):

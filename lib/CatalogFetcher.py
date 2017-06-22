@@ -6,10 +6,8 @@ from threading import Thread
 from CatalogOutput import CatalogOutput
 from Autism import Autism
 import curses
-from Statusbar import Statusbar
 import time
 import threading
-from Titlebar import Titlebar
 from DebugLog import DebugLog
 
 class CatalogFetcher(threading.Thread):
@@ -64,7 +62,11 @@ class CatalogFetcher(threading.Thread):
 				getCatalog.setstdscr(self.stdscr)
 				getCatalog.get("catalog")
 				catalog = getattr(getCatalog, "jsoncontent")
-				catOutput.refresh(catalog)
+				result_postno = catOutput.refresh(catalog)
+				if len(result_postno) == 1:
+					self.cp.wl.destroy_active_window()
+					self.cp.wl.join_thread(self.board, str(result_postno.pop()))
+					break
 				self.tb.set_title("/" + self.board + "/ -- catalog")
 			except Exception as e:
 				self.sb.setStatus(str(e))

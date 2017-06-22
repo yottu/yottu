@@ -15,31 +15,18 @@ class CatalogOutput(object):
 		self.cp = cp
 		self.search = search
 		self.tdict = {}
+		self.result_postno = [] # list of OPs containing search term
+		self.dlog = DebugLog()
 		
 	def refresh(self, json):
 		self.catalog = json
 		
-		try:
-			debug = DebugLog("debug.log")
-		except:
-			raise
-		
 		
 		for pages in self.catalog:
 			for threads in pages['threads']:
-
+				
 				try:
 					no = threads['no']
-
-				# Post is OP
-# 				try:
-# 					if threads['resto'] is 0:
-# 						self.tdict['OP'] = {'no': threads['no'], 'sub': threads['sub'].encode('utf-8'), 'semantic_url': threads['semantic_url'].encode('utf-8')}					
-# 				
-# 				except Exception as e:
-# 					debug.msg("Exception:" + e.msg() + "\n")
-# 					raise
-# 				
 
 					# skip if record found in dictionary	
 					if no in self.tdict:
@@ -49,7 +36,8 @@ class CatalogOutput(object):
 					time = datetime.datetime.fromtimestamp(threads['time']).strftime('%H:%M')
 				except:
 					continue
-					
+				
+	
 				curses.use_default_colors() # @UndefinedVariable
 				for i in range(0, curses.COLORS):  # @UndefinedVariable
 					curses.init_pair(i + 1, i, -1) # @UndefinedVariable
@@ -82,7 +70,7 @@ class CatalogOutput(object):
 					trip = threads['trip']
 				except:
 					trip = ""
-					
+		
 				self.tdict[no] = {'country':country, 'name':name, 'time':time,
 								  'com':com, 'trip':trip, 'color':color, 'sub':sub, 'replies':replies}
 
@@ -90,9 +78,10 @@ class CatalogOutput(object):
 				# Output tdict to pad
 				try:
 					
-										
-					if (not re.search(str.lower(self.search), sub.lower())) and (not re.search(str.lower(self.search), com.lower())):
-						continue
+					if self.search:					
+						if (not re.search(str.lower(self.search), sub.lower())) and (not re.search(str.lower(self.search), com.lower())):
+							continue
+						self.result_postno.append(no)
 					
 					self.cp.addstr("", curses.color_pair(color)) # @UndefinedVariable
 					self.cp.addstr(time)
@@ -101,13 +90,13 @@ class CatalogOutput(object):
 					self.cp.addstr(" " + country)
 		
 	
-					self.cp.addstr(" <" + name.encode('utf8') + "> ", curses.A_DIM)
+					self.cp.addstr(" <" + name.encode('utf8') + "> ", curses.A_DIM)  # @UndefinedVariable
 					
 					sublist = sub.split()
 					comlist = com.split()
 					try:
 						for word in sublist:
-							self.cp.addstr(u''.join((word + " ")).encode('utf8'), curses.A_BOLD)
+							self.cp.addstr(u''.join((word + " ")).encode('utf8'), curses.A_BOLD)  # @UndefinedVariable
 						
 						if sub:
 							self.cp.addstr("- ")
@@ -118,9 +107,10 @@ class CatalogOutput(object):
 						self.cp.addstr("[File only]")
 				except:
 					raise
-		
+
 				self.cp.addstr("\n\n")
-			
+				
+		return self.result_postno	
 		
 	def get_tdict(self):
 		return self.__tdict

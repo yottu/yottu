@@ -40,6 +40,7 @@ class PostReply(object):
         
         self.lock = thread.allocate_lock()
         self.dictOutput = None
+        self.bp = None
         
         self.dlog = DebugLog()
         
@@ -110,7 +111,7 @@ class PostReply(object):
         captcha_challenge = self.captcha_challenge
         captcha_solution = self.captcha_solution
         self.dlog.msg("Waiting C: " + captcha_solution + str(kwargs))
-        #self.dictOutput.bp.sb.setStatus("Deferring comment: " + str(time_wait) + "s")
+        self.bp.sb.setStatus("Deferring comment: " + str(time_wait) + "s")
         
         
         self.lock.acquire()
@@ -120,15 +121,15 @@ class PostReply(object):
             while time_wait > 0:
                 time.sleep(time_wait)
                 # get new lastpost value and see if post needs to be deferred further
-                time_wait = self.dictOutput.bp.time_last_posted_thread + 60 - int(time.time()) 
+                time_wait = self.bp.time_last_posted_thread + 60 - int(time.time()) 
         
             kwargs.update(dict(captcha_challenge=captcha_challenge, captcha_solution=captcha_solution))
             self.dlog.msg("Now posting: C: " + captcha_solution + str(kwargs))
             rc = self.post(**kwargs)
             if rc != 200:
-                self.dictOutput.bp.sb.setStatus("Deferred comment was not posted: " + str(rc))
+                self.bp.sb.setStatus("Deferred comment was not posted: " + str(rc))
         except Exception as err:
-            self.dictOutput.bp.sb.setStatus("Deferred: " + str(err))
+            self.bp.sb.setStatus("Deferred: " + str(err))
             pass
         finally:
             self.lock.release()
@@ -204,7 +205,7 @@ class PostReply(object):
         
         if response.status_code == 200 and self.dictOutput:
             self.dictOutput.mark(comment)
-            self.dictOutput.bp.time_last_posted_thread = int(time.time())
+            self.bp.post_success(int(time.time()))
         
         
         return response.status_code

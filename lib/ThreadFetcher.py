@@ -14,7 +14,7 @@ import urllib2
 
 class ThreadFetcher(threading.Thread):
 	def __init__(self, threadno, stdscr, board, bp, nickname):
-		self.threadno = threadno
+		self.threadno = str(threadno)
 		self.stdscr = stdscr
 		self.board = board
 		self.bp = bp
@@ -146,7 +146,7 @@ class ThreadFetcher(threading.Thread):
 				
 				try:
 					if self._active:
-						wait_n = self.bp.time_last_posted_thread + 60 - int(time.time()) 
+						wait_n = self.bp.calc_post_wait_time()
 						if wait_n > 0:
 							self.sb.draw(update_n=update_n, wait_n=wait_n)
 						else:

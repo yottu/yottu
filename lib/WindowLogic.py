@@ -108,8 +108,21 @@ class WindowLogic(object):
 				activeWindowRef.stop()
 				self.windowList.remove(activeWindowRef)
 				self.windowListProperties.pop(activeWindowRef)
-			except Exception, err:
-				self.dlog.excpt(err)
+			except Exception as err:
+				self.dlog.excpt(err, cn=self.__class__.__name__)
+				
+	def destroy_window_ref(self, windowRef):
+		#if self.get_active_window_ref() == windowRef:
+		#	self.raise_window(self.get_active_window()-1)
+		
+		try:
+			windowRef.stop()
+			self.windowList.remove(windowRef)
+			self.windowListProperties.pop(windowRef)
+		except Exception as err:
+			self.dlog.excpt(err, cn=self.__class__.__name__)
+		
+
 			
 	def get_window(self, window):
 		'''Returns the index number of the arg'''

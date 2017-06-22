@@ -17,18 +17,28 @@ class BoardPad(Pad):
 	'''
 	def __init__(self, stdscr, wl):
 		super(BoardPad, self).__init__(stdscr, wl)
+		
 		self.board = ""
 		self.threadno = ""
-		self.threadFetcher = None
-		self.postReply = None
 		self.comment = ""
 		self.subject = "" # TODO not implemented
+		
 		self.filename = None
 		self.ranger = False # If true filename contains path to actual filename
+		
 		self.tdict = {}
+		self.threadFetcher = None
+		self.postReply = None
 		self.contentFetcher = None
+		
+		self.time_last_posted = 0 # Time last posted
+		self.time_last_posted_board = 0 # Time last posted on board
 		self.time_last_posted_thread = 0 # Time last post was made in this thread
-		# self.time_last_posted_board = None # Time last posted on board #TODO
+		self.thread_wait = 60   # static time to wait after posting in the same thread
+		self.board_wait =  60   # static time to wait after posting on the same board
+		self.global_wait = 0    # static time to wait after posting
+		self.create_wait = 600  # static time to wait before making a new thread
+		
 		self.dlog = DebugLog(self)
 		
 	class NoDictError(Exception):
@@ -41,6 +51,29 @@ class BoardPad(Pad):
 
 	def set_comment(self, value):
 		self.__comment = value
+		
+	def init_cooldowns(self):
+		# get board specifc cooldowns from hardcoded list
+		boards_longdelay = ['vg'] # TODO complete list
+		
+		if self.board in boards_longdelay:
+			self.thread_wait = 90
+			self.board_wait = 60
+			self.global_wait = 0
+			self.create_wait = 600
+		
+
+	def calc_post_wait_time(self):
+		''' returns the time that has to be waited to make a new post on this board '''
+	
+		cur_time = int(time.time())
+		
+		# wait time or 0 if it is negative
+		cur_thread_wait = max(0, self.time_last_posted_thread + self.thread_wait - cur_time)
+		cur_board_wait =  max(0, self.time_last_posted_board + self.board_wait - cur_time)
+		cur_global_wait = max(0, self.time_last_posted + self.global_wait - cur_time)
+		
+		return max(cur_thread_wait, cur_board_wait, cur_global_wait)
 
 
 	#FIXME apparently I don't need these in python, since there are no private attributes
@@ -87,6 +120,7 @@ class BoardPad(Pad):
 		self.board = board
 		self.threadno = threadno
 		self.set_nickname(nickname)
+		self.init_cooldowns()
 		
 		self.sb.set_board(self.board)
 		self.sb.set_threadno(self.threadno)
@@ -101,6 +135,7 @@ class BoardPad(Pad):
 		
 		self.postReply = PostReply(self.board, self.threadno)
 		self.postReply.dictOutput = self.threadFetcher.dictOutput # Needed for marking own comments
+		self.postReply.bp = self
 		
 	def post_prepare(self, comment="", filename=None, ranger=False, subject=""):
 		self.comment = comment
@@ -118,29 +153,42 @@ class BoardPad(Pad):
 		self.postReply.set_captcha_solution(captcha)
 		
 	def post_submit(self):
-		wait = self.time_last_posted_thread + 60 - int(time.time())
-		if self.filename and wait > 0:
-			thread.start_new_thread(self.postReply.defer, (wait,), dict(nickname=self.nickname, comment=self.comment, subject=self.subject, file_attach=self.filename, ranger=self.ranger))
-			response = ("deferred", wait)
-		elif self.filename:
-			response = self.postReply.post(nickname=self.nickname, comment=self.comment, subject=self.subject, file_attach=self.filename, ranger=self.ranger)
-		elif self.comment and wait > 0:
-			thread.start_new_thread(self.postReply.defer, (wait,), dict(nickname=self.nickname, comment=self.comment))
-			response = ("deferred", wait)
-		elif self.comment:
-			response = self.postReply.post(nickname=self.nickname, comment=self.comment)
-		else:
+		
+		if not self.filename and not self.comment:
 			raise ValueError("Either filename or comment must be set.")
+		
+		# TODO this timer is intra/interthread/board specific # FIXME timer values are not correct
+		wait = self.calc_post_wait_time()
+		
+		if wait > 0:
+			thread.start_new_thread(self.postReply.defer, (wait,), dict(nickname=self.nickname, 
+									comment=self.comment, subject=self.subject,
+									file_attach=self.filename, ranger=self.ranger))
+			response = ("deferred", wait)
+			
+		else:
+			response = self.postReply.post(nickname=self.nickname, comment=self.comment,
+										subject=self.subject, file_attach=self.filename,
+										ranger=self.ranger)
+			
+
 		
 		self.filename = None
 		self.ranger = None
 		
-		if response == 200:
-			#self.threadFetcher.dictOutput.mark(self.comment)
-			self.time_last_posted_thread = int(time.time()) # TODO this timer is intra/interthread/board specific
-			# TODO for loop that iterates over BoardPads with the same board and sets time_last_posted_board to int(time.time())
 			
 		return response
+			
+	def post_success(self, time):
+		''' called after a post was made successfully on this BoardPad '''
+		
+		self.time_last_posted_thread = time
+		# iterate over BoardPads and update last posted time
+		for window in self.wl.get_window_list():
+			if isinstance(window, BoardPad):
+				window.time_last_posted = time
+				if window.board == self.board:
+					window.time_last_posted_board = time
 			
 			
 	def update_thread(self):
