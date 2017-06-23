@@ -798,6 +798,13 @@ class CommandInterpreter(threading.Thread):
 				except (TypeError, UnicodeDecodeError, UnicodeEncodeError) as err:
 					self.dlog.excpt(err, msg=" >>>in CommandInterpreter.run() -> assign c to inputstr")
 					
+					
+				
+				# Set keyname to easily parse control characters
+				keyname = None	
+				try: keyname = curses.keyname(ord(c))  # @UndefinedVariable
+				except: pass
+					
 				#elif len(inputstr) > 1:
 				#	c = -2
 				
@@ -869,7 +876,7 @@ class CommandInterpreter(threading.Thread):
 				### End of mouse control ###
 				
 	
-				### Keys only valid in cmode ###
+################ Keys only valid in cmode ################
 				elif self.cmode or self.tmode:
 					curses.curs_set(True)  # @UndefinedVariable
 												
@@ -945,70 +952,39 @@ class CommandInterpreter(threading.Thread):
 					try:	
 						
 						# Handle keycaps, FIXME: suppress output of C-M?
-						#self.dlog.msg("--DEBUG: c/inputsr/cmd:" + str(c) + " | "+ str(inputstr) + " | " + str(self.command))
-
+						#try: self.dlog.msg("--DEBUG: c/keynmae(c)/inputsr/cmd:" + str(c) + " | " + str(curses.keyname(ord(c))) + " | " + str(inputstr) + " | " + str(self.command))  # @UndefinedVariable
+						#except: pass
+						
+						if keyname == '^W' or keyname == '^U':
+							c = "KEY_BACKSPACE"
 						if re.match("^KEY_\w+$", c):
-							if c == "KEY_BACKSPACE" or c == "KEY_LEFT":
-# 								self.dlog.msg("--DEBUG: c is KEY_BS or KEY_LEFT")
 								
-								# Delete last character after, len("[/] ") == 4 
-								if self.clinepos > 4:
-# 									self.dlog.msg("--DEBUG: clinepos > 4")
-									
-									if self.command_pos > 0:
-										self.command_pos -= 1
-									else:
-										continue
-									
-									# Need to erase two single width characters for wide unicode characters
-									try:
+							if c == "KEY_LEFT":
+								self.adjust_clinepos(characters=-1)
 
-										if unicodedata.east_asian_width(self.command.decode('utf-8')[self.command_pos:self.command_pos+1]) is 'W':
-											self.clinepos = self.clinepos - 2
-# 											self.dlog.msg("--DEBUG: WIDE WIDTH: 2")
-										else:
-											self.clinepos = self.clinepos - 1
-# 											self.dlog.msg("--DEBUG: NORM WIDTH: 1")
-									except Exception as err:
-										self.dlog.excpt(err, "--DEBUG: Exception in wide unicode char detection")
-										
-
-										
-									if c == "KEY_BACKSPACE":	
-									# FIXME keep self.command utf-8	
-										try:
-											cmd = self.command.decode('utf-8')[:self.command_pos] + self.command.decode('utf-8')[self.command_pos+1:]
-											self.command = cmd.encode('utf-8')
-										except:
-											self.dlog.msg("--DEBUG: Exception 1")
-										#self.command = self.command.encode('utf-8')
-										
-										# Redraw the command string, omit the "say " in tmode
-										
-										# clear command input line
-										self.stdscr.addstr(self.screensize_y-1, 4, " "*(self.screensize_x-5)) 
-										
-										tmp_cmd = self.command.replace('\n', '¬')
-										if self.tmode:
-											# FIXME "say " is hardcoded into this range
-											self.stdscr.addstr(self.screensize_y-1, 4, tmp_cmd[4:])
-										elif self.cmode: 
-											self.stdscr.addstr(self.screensize_y-1, 4, tmp_cmd)
-
-									self.stdscr.move(self.screensize_y-1, self.clinepos)
+							elif c == "KEY_BACKSPACE":	
+							# FIXME keep self.command utf-8
+								if keyname == '^W':
+									# get len of word+space from self.command at command_pos
+									self.backspace(-len(self.command.split(" ").pop(self.command[:self.command_pos].count(" ")))-1) 
+								elif keyname == '^U':
 									
-								continue
-								
-							elif c == "KEY_RIGHT":
-								if self.command_pos < len(self.command):
-									if unicodedata.east_asian_width(self.command.decode('utf-8')[self.command_pos-1:self.command_pos]) is 'W':
-										self.clinepos += 2
-									else:
-										self.clinepos += 1
+									self.command = ""
+									self.command_pos = 0
+									
+									if self.tmode:
+										self.command = "say "
+										self.command_pos = 4
 										
-									self.command_pos += 1
+									self.clinepos = 4
+									self.clear_cmdinput('>')
+								else:
+									self.backspace()
 								
 								self.stdscr.move(self.screensize_y-1, self.clinepos)
+								
+							elif c == "KEY_RIGHT":
+								self.adjust_clinepos(characters=1)
 							
 							elif c == "KEY_UP":
 								self.cmd_history(-1)
@@ -1031,6 +1007,7 @@ class CommandInterpreter(threading.Thread):
 					try:
 						# Need to avoid the Exception for long unicode strings
 						if len(inputstr) == 1 and c != -1 and (c == u'\n' or ord(c) == 27):
+							
 							if c == u'\n':
 								# Only execute if command is not empty
 								if len(self.command) and self.command is not "say ":
@@ -1065,7 +1042,7 @@ class CommandInterpreter(threading.Thread):
 						self.dlog.excpt(e, msg=" >>>in CommandInterpreter.run() -> cmode")
 					
 					continue
-				### End of cmode input ###
+################ End of keys only valid in cmode ################
 				
 				elif c == 'KEY_UP':
 					self.wl.moveup()
@@ -1167,16 +1144,102 @@ class CommandInterpreter(threading.Thread):
 			pass
 	# End of run loop
 	
+	def backspace(self, characters=-1):
+		''' deletes last character from self.command, clinepos--, redraws command line '''
+				# offset for "say "
+		offset = 0
+		if self.tmode:
+			offset = 4
+			
+		if characters < 0:
+			sign = -1
+		else:
+			sign = 1
+		
+		if abs(characters) >= len(self.command[offset:self.command_pos]):
+			characters = len(self.command[offset:self.command_pos]) * sign
+		
+		try:
+			# build new string with characters=n characters cut out
+			
+			cmd = self.command.decode('utf-8')[:self.command_pos+characters] + self.command.decode('utf-8')[self.command_pos:]
+			self.command = cmd.encode('utf-8')
+			
+			# TODO this is probably not wide character safe, need to implement adjust_clinepos()
+			self.clinepos += characters
+			self.command_pos += characters
+			
+
+		except Exception as err:
+			self.dlog.excpt(err, cn=self.__class__.__name__)
+			return
+		
+		# clear command input line
+		self.stdscr.addstr(self.screensize_y-1, 4, " "*(self.screensize_x-5)) 
+		
+		tmp_cmd = self.command.replace('\n', '¬')
+		if self.tmode:
+			# FIXME "say " is hardcoded into this range
+			self.stdscr.addstr(self.screensize_y-1, 4, tmp_cmd[4:])
+		elif self.cmode:
+			self.stdscr.addstr(self.screensize_y-1, 4, tmp_cmd)
+		
+		
+		
+			
+	def adjust_clinepos(self, characters=1):
+		# Delete last character after, len("[/] ") == 4 
+		if characters == 0:
+			raise IndexError("Argument can not be zero.")
+		
+		
+		# offset for "say "
+		offset = 0
+		if self.tmode:
+			offset = 4
+			
+		try:
+			if characters < 0:
+				shift = -1
+			else:
+				shift = 1
+			
+			for i in range(abs(characters)):
+				if self.command_pos+shift < 0+offset or self.command_pos+shift > len(self.command):
+					#self.dlog.msg("cmdlen: " + str(len(self.command)) + "Command Position: " + str(self.command_pos) + " clinepos: " + str(self.clinepos) + " shift: " + str(shift))
+					break
+				
+				try:
+					# Need to erase two single width characters for wide unicode characters
+					if unicodedata.east_asian_width(self.command.decode('utf-8')[self.command_pos:self.command_pos+1]) is 'W':
+						self.clinepos = self.clinepos + shift*2
+						
+					else:
+						self.clinepos = self.clinepos + shift*1
+				
+				except TypeError:
+					#self.dlog.msg("adjust_clinepos(): TypeError")
+					self.clinepos = self.clinepos + shift*1
+					
+				self.command_pos += shift
+					
+			
+		except Exception as err:
+			self.dlog.excpt(err, msg=">>adjust_clinepos()", cn=self.__class__.__name__)
+				
+		self.stdscr.move(self.screensize_y-1, self.clinepos)
+				
+	
 	def change_window(self, c):
 		''' Defines keys to change the window with '''
 		try:
 			
 			if c == u'n':
-				self.wl.next() #TODO: implement in wl
+				self.wl.next()
 				return True
 				
 			elif c == u'p':
-				self.wl.prev() #TODO: implement in wl
+				self.wl.prev()
 				return True
 			
 			else: 
