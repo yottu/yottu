@@ -798,8 +798,16 @@ class CommandInterpreter(threading.Thread):
 				except (TypeError, UnicodeDecodeError, UnicodeEncodeError) as err:
 					self.dlog.excpt(err, msg=" >>>in CommandInterpreter.run() -> assign c to inputstr")
 					
+<<<<<<< Updated upstream
 					
 				
+=======
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
+=======
+=======
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
 				# Set keyname to easily parse control characters
 				keyname = None	
 				try: keyname = curses.keyname(ord(c))  # @UndefinedVariable
@@ -876,7 +884,20 @@ class CommandInterpreter(threading.Thread):
 				### End of mouse control ###
 				
 	
+<<<<<<< Updated upstream
 ################ Keys only valid in cmode ################
+=======
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
+				### Keys only valid in cmode ###
+				elif self.cmode or self.tmode:
+					curses.curs_set(True)  # @UndefinedVariable
+					
+=======
+=======
+>>>>>>> Stashed changes
+################ Keys only valid in cmode ################ TODO: -- mark --
+>>>>>>> Stashed changes
 				elif self.cmode or self.tmode:
 					curses.curs_set(True)  # @UndefinedVariable
 												
@@ -886,9 +907,30 @@ class CommandInterpreter(threading.Thread):
 # 					self.dlog.msg("--DEBUG:   CHARACTER: " + self.command.decode('utf-8')[self.command_pos:self.command_pos+1])
 # 					self.dlog.msg("--DEBUG: Pos: " + str(self.command_pos))
 						
-					# Catch Meta-Keys // tmode
+<<<<<<< Updated upstream
+=======
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
+					# Catch Meta-Keys
 					if c == -1 and len(inputstr) == 2 and ord(inputstr[0]) == 27:
 						
+						# Attach a file to post
+						if str(inputstr[1]) == 'f':
+							self.attach_file()
+						
+=======
+>>>>>>> Stashed changes
+					# Catch Meta-Keys // tmode
+					if c == -1 and len(inputstr) == 2 and ord(inputstr[0]) == 27:
+<<<<<<< Updated upstream
+						
+=======
+=======
+					# Catch Meta-Keys // tmode
+					alt_key = None
+					if c == -1 and len(inputstr) == 2 and ord(inputstr[0]) == 27:
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
 						alt_key = str(inputstr[1])
 						
 						# Attach a file to post
@@ -930,6 +972,16 @@ class CommandInterpreter(threading.Thread):
 								self.command += "\n"
 								self.cstrout("¬", command_add=False)
 								#self.command = self.command.decode('utf-8')[:self.command_pos] + u"\n" + self.command.decode('utf-8')[self.command_pos:]
+<<<<<<< Updated upstream
+=======
+							
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
+=======
+=======
+>>>>>>> Stashed changes
+							continue
+>>>>>>> Stashed changes
 								
 						# Alt+1-0, Alt+n, Alt+p 		
 						elif self.change_window(alt_key):
@@ -951,11 +1003,30 @@ class CommandInterpreter(threading.Thread):
 					
 					try:	
 						
+<<<<<<< Updated upstream
 						# Handle keycaps, FIXME: suppress output of C-M?
 						#try: self.dlog.msg("--DEBUG: c/keynmae(c)/inputsr/cmd:" + str(c) + " | " + str(curses.keyname(ord(c))) + " | " + str(inputstr) + " | " + str(self.command))  # @UndefinedVariable
 						#except: pass
 						
 						if keyname == '^W' or keyname == '^U':
+=======
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
+						# Handle keycaps, FIXME: suppress output of C-M?
+						#self.dlog.msg("--DEBUG: c/inputsr/cmd:" + str(c) + " | "+ str(inputstr) + " | " + str(self.command))
+
+						if re.match("^KEY_\w+$", c):
+							if c == "KEY_BACKSPACE" or c == "KEY_LEFT":
+# 								self.dlog.msg("--DEBUG: c is KEY_BS or KEY_LEFT")
+								
+								# Delete last character after, len("[/] ") == 4 
+								if self.clinepos > 4:
+# 									self.dlog.msg("--DEBUG: clinepos > 4")
+=======
+=======
+>>>>>>> Stashed changes
+						if keyname == '^W' or keyname == '^U' or keyname == '^A' or keyname == '^E':
+>>>>>>> Stashed changes
 							c = "KEY_BACKSPACE"
 						if re.match("^KEY_\w+$", c):
 								
@@ -984,7 +1055,19 @@ class CommandInterpreter(threading.Thread):
 								self.stdscr.move(self.screensize_y-1, self.clinepos)
 								
 							elif c == "KEY_RIGHT":
+<<<<<<< Updated upstream
 								self.adjust_clinepos(characters=1)
+=======
+								if alt_key:
+									
+									self.adjust_clinepos(current_word_len_post+1)
+								else:
+									self.adjust_clinepos(characters=1)
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
 							
 							elif c == "KEY_UP":
 								self.cmd_history(-1)
