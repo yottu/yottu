@@ -14,7 +14,7 @@ from Statusbar import Statusbar
 
 class Pad(object):
 	reservedscreen = 3
-	padbuffersize = 4096
+	padbuffersize = 8192
 
 	def __init__(self, stdscr, wl):
 		self.stdscr = stdscr
@@ -25,7 +25,7 @@ class Pad(object):
 		
 		self.pheight = height;
 		self.pwidth = width
-		self.mypad = curses.newpad(height+Pad.padbuffersize, width)  # @UndefinedVariable
+		self.mypad = curses.newpad(self.pheight+Pad.padbuffersize, self.pwidth)  # @UndefinedVariable
 		curses.curs_set(False)  # @UndefinedVariable
 		
 		self.padr = 0; self.padu = 0; self.padd = 0
@@ -148,7 +148,10 @@ class Pad(object):
 			if mentioned:
 				self.wl.windowListProperties[self]['sb_mentioned'] = True
 		except Exception as err:
-			self.dlog.msg("Pad.addstr() - indent != 0: " + str(err))
+			self.dlog.excpt(err, msg="Pad.addstr() - indent != 0", cn=self.__class__.__name__)
+			if str(err) == "addstr() returned ERR":
+				self.dlog.msg("Pad full. Reinitializing..")
+				self.mypad = curses.newpad(self.pheight+Pad.padbuffersize, self.pwidth)  # @UndefinedVariable
 			
 		# Increase unread line counter on inactive windows
 		if re.search(r'\n', string):

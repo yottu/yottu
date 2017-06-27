@@ -20,8 +20,6 @@ class Statusbar(Bar):
 		
 		self.nickname = nickname
 		
-		self.clinepos = 1 # command line character position 
-		
 		self.screensize_y, self.screensize_x = stdscr.getmaxyx();
 
 	def get_unread_windows(self):
@@ -105,6 +103,10 @@ class Statusbar(Bar):
 			
 			# Add Clock, name and Window/Board/Thread
 			statusbar_text_head = u' '.join((self.sb_clock, self.sb_name, self.sb_win)).encode('UTF-8')
+
+			# Save position
+			saved_y, saved_x = self.stdscr.getyx()
+
 			self.stdscr.addstr(self.screensize_y-2, 0, statusbar_text_head, curses.color_pair(1))  # @UndefinedVariable
 			
 			if self.unread_windows:
@@ -126,18 +128,19 @@ class Statusbar(Bar):
 			statusbar_text_tail = u' '.join((" "*self.sb_blank, self.sb_status, counter))
 			self.stdscr.addstr(statusbar_text_tail, curses.color_pair(1))  # @UndefinedVariable
 			
-			# TODO cursor needs to be moved to the string (clinepos) of ci # does it really?
-			if self.wl.ci:
-				clinepos = self.wl.ci.clinepos
-			else:
-				clinepos = 1
-			self.stdscr.move(self.screensize_y-1, clinepos)
+			# Restore prior position
+			self.stdscr.move(saved_y, saved_x)
 			self.stdscr.refresh()
+			
+			# TODO Find out why Cross-Page-^W messes up clinepos
+			if self.wl.ci:
+				self.wl.ci.clinepos = saved_x
+			
 			
 		except Exception as err:
 			self.dlog.msg("Statusbar.draw(): " + str(err))
+			#self.wl.ci.clinepos = 4
 			raise
-			#quit(self.stdscr)
 		
 		return
 	
