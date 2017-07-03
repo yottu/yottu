@@ -66,7 +66,7 @@ class CommandInterpreter(threading.Thread):
 		
 		curses.curs_set(False)  # @UndefinedVariable
 		self.terminate = 0
-		self.dlog = DebugLog(self.wl, debugLevel=3)
+		self.dlog = DebugLog(self.wl, debugLevel=5)
 		
 		self.nickname = ""
 		self.readconfig()
@@ -269,7 +269,6 @@ class CommandInterpreter(threading.Thread):
 				self.clear_cmdinput("+")
 				self.clinepos = 4
 				
-			self.refresh_cmd_page()
 				
 			self.command_pos += len(c)
 			
@@ -283,7 +282,10 @@ class CommandInterpreter(threading.Thread):
 				self.clinepos += 1
 				self.stdscr.addstr(self.screensize_y-1, 0, "[>]", curses.A_BOLD)  # @UndefinedVariable
 
-			self.stdscr.move(self.screensize_y-1, self.clinepos)
+			#self.stdscr.move(self.screensize_y-1, self.clinepos)
+			
+			
+			self.refresh_cmd_page(x=self.clinepos)
 
 # 			tmp_debug = self.command
 # 			self.dlog.msg("--DEBUG:     COMMAND: " + tmp_debug.replace("\n", "|"))
@@ -950,18 +952,23 @@ class CommandInterpreter(threading.Thread):
 							
 						if c != -1 and re.match("^KEY_\w+$", c):
 							
+							# FIXME math
 							# self.command word length before command_pos
 							current_word_len_pre = len(self.command[:self.command_pos].split(" ").pop())
+							if current_word_len_pre == 0:
+								current_word_len_pre = len(self.command[:self.command_pos-1].split(" ").pop()) +1
 							# word length at command_pos
 							current_word_len = len(self.command.split(" ").pop(self.command[:self.command_pos].count(" ")))
 							# word length after command_pos
 							current_word_len_post = current_word_len - current_word_len_pre
+							if current_word_len_post == 0:
+								current_word_len_post = len(self.command.split(" ").pop(self.command[:self.command_pos+1].count(" "))) + 1
 							
 
 								
 							if c == "KEY_LEFT":
 								if alt_key:
-									self.adjust_clinepos(-current_word_len_pre-1)
+									self.adjust_clinepos(-current_word_len_pre)
 								else:
 									self.adjust_clinepos(characters=-1)
 
@@ -1011,7 +1018,7 @@ class CommandInterpreter(threading.Thread):
 							elif c == "KEY_RIGHT":
 								if alt_key:
 									
-									self.adjust_clinepos(current_word_len_post+1)
+									self.adjust_clinepos(current_word_len_post)
 								else:
 									self.adjust_clinepos(characters=1)
 							
@@ -1217,10 +1224,13 @@ class CommandInterpreter(threading.Thread):
 			else:
 				# Prevent erasing more characters than the command length
 				if len(self.command[offset:self.command_pos])+characters < 0:
+					self.dlog.msg("More characters to delete than command length: " + str(characters), 5)
 					characters = len(self.command[offset:self.command_pos]) * shift
+					self.dlog.msg("Adjusting characters to be erased to: " + str(characters), 5)
 				
 				# The substring of self.command to delete
 				cmd_dispose = u''.join(self.command[self.command_pos+characters:self.command_pos])
+				self.dlog.msg("Deleting substring: " + cmd_dispose.encode('utf-8'), 5)
 				
 				if not cmd_dispose:
 					return
@@ -1233,7 +1243,10 @@ class CommandInterpreter(threading.Thread):
 						self.clinepos = self.input_page_size
 						self.refresh_cmd_page()
 					
-					self.dlog.msg(str(self.clinepos))
+					self.dlog.msg("--backspace() clinepos #1: " + str(self.clinepos))
+					
+					# Save position
+					y, x = self.stdscr.getyx()
 					
 					# For character mapping see http://unicode.org/reports/tr11/#Recommendations
 					if unicodedata.east_asian_width(char) == 'W' or unicodedata.east_asian_width(char) == 'F':
@@ -1244,6 +1257,9 @@ class CommandInterpreter(threading.Thread):
 					
 					else:
 						self.stdscr.addstr(self.screensize_y-1, 0, "[<]", curses.A_BOLD)  # @UndefinedVariable
+					
+					# Restore position
+					self.stdscr.move(y, x)
 						
 					if shift < 0:
 						self.command = u''.join(self.command[:self.command_pos+shift] + self.command[self.command_pos:])
@@ -1263,23 +1279,27 @@ class CommandInterpreter(threading.Thread):
 			self.dlog.excpt(err, cn=self.__class__.__name__, msg=">>>in backspace()")
 			return
 		
-	def refresh_cmd_page(self):
-		''' Redraws the command line page '''
-		
+	def refresh_cmd_page(self, x=False):
+		''' Redraws the command line page according to command_pos '''
+#		if not x:
+#			x = self.clinepos
 		# Offset for "say "
 		offset = 0
 		if self.tmode:
 			offset = 4
-			
+		
+		# Single width Page size, need to consider double width characters	
 		self.input_page_size = self.screensize_x-self.cline_buffer-len(self.cmd_prefix)
 		# Current input page number starting at 0
-		input_page_pos = (self.command_pos-offset)/self.input_page_size
+		#input_page_pos = (self.command_pos-offset)/self.input_page_size
+		input_page_pos = 0
 		
 		
 		try:
-		# Adjust IPP in case double wide unicode characters are used, it's not like anybody is using all these CPU cycles anyway
+		# Adjust IPP in case double wide unicode characters are used
 			cmd_pages = [ offset ]
-			cmd_end_pos = cwidth = 0
+			cwidth = 0
+			command_pos_cwidth = 0 # for calculating self.clinepos
 			for charcount, char in enumerate(self.command[offset:], 1):
 				
 				# For character mapping see http://unicode.org/reports/tr11/#Recommendations
@@ -1289,69 +1309,63 @@ class CommandInterpreter(threading.Thread):
 					if (cwidth+offset)%self.input_page_size == 1:
 						# FIXME figure out how to handle a W/F-Character that gets moved halfway out of the page
 						# [-----あ] <- 0 Page 1 -> [あ-----] 
-						self.dlog.msg("x_______________________________x")
+						self.dlog.msg("x_______________________________x", 4)
 						self.input_page_size-=1
 						cmd_pages.append(charcount-1)
 				else:
 					cwidth += 1
 				
-				if (cwidth+offset)%self.input_page_size == 0:
-					cmd_pages.append(charcount)
+				if (cwidth)%self.input_page_size == 0:
+					cmd_pages.append(charcount+offset)
 					
-				if charcount+offset == self.command_pos:
-					input_page_pos = (cwidth)/self.input_page_size
-				
+				# [0+offset, (1+offset), 2+offset] -> [1-1+offset, 2-1+offset, 3-1+offset]
+				if self.command_pos == charcount-1+offset:
+					input_page_pos = (cwidth-1)/self.input_page_size
+					command_pos_cwidth = cwidth%self.input_page_size
+					self.clinepos = command_pos_cwidth-1+len(self.cmd_prefix)
+					if (self.clinepos < len(self.cmd_prefix)):
+						self.clinepos = self.input_page_size+self.cline_buffer-1
+					self.dlog.msg("--Changing IPP: " + str(cwidth-1) + "/" + str(self.input_page_size) + " = " + str(input_page_pos), 5)
+					self.dlog.msg("--Set self.clinepos to: " + str(self.clinepos))
 			
-			self.dlog.msg("--New Page: " + str(input_page_pos) + " cwidth: " + str(cwidth))
+
+			if self.command_pos == len(self.command):		
+				input_page_pos = (cwidth)/self.input_page_size
+				command_pos_cwidth = cwidth%self.input_page_size
+				self.clinepos = command_pos_cwidth+len(self.cmd_prefix)
+				self.dlog.msg("Changing IPP (Max): " + str(input_page_pos), 5)
+				
+			self.dlog.msg("--Page: " + str(input_page_pos) + " cwidth: " + str(cwidth), 5)
 				
 				
-		#	for cmd_end_pos, char in enumerate(self.command[cmd_pages[input_page_pos]:]):
 			try:
-# 				if input_page_pos < len(cmd_pages):
-				cmd_end_pos = cmd_pages[input_page_pos+1]+offset
+				cmd_end_pos = cmd_pages[input_page_pos+1] #+offset
 				if cmd_end_pos == cmd_pages[input_page_pos]:
 					cmd_end_pos = None
-# 				else:
-# 					for i, char in enumerate(self.command[cmd_pages[input_page_pos]:]):
-# 						
-# 						cmd_end_pos = i + cmd_pages[input_page_pos]
-# 					
-			except IndexError:
+				
+			except (IndexError, TypeError):
 				cmd_end_pos = None
 			
-# 				if unicodedata.east_asian_width(char) == 'W':
-# 					cwidth += 2
-# 				else:
-# 					cwidth += 1
-# 					
-# 				if (cwidth)%self.input_page_size == 0:
-# 					cmd_start_pos.append(cmd_end_pos)
-# 				
-# 				if (cwidth)/self.input_page_size > input_page_pos:
-# 					break
-				
-			self.dlog.msg("--Input Page size: " + str(self.input_page_size) + " cwidth: " + str(cwidth))	
-			self.dlog.msg("--Start Position: " + str(cmd_pages) + " End Position: " + str(cmd_end_pos))	
+
+			self.dlog.msg("--Input Page size: " + str(self.input_page_size) + " cwidth: " + str(cwidth), 5)	
+			self.dlog.msg("--Start Position: " + str(cmd_pages) + " End Position: " + str(cmd_end_pos), 5)	
 				
 		except Exception as err:
 			self.dlog.excpt(err, msg=">>>in refresh_cmd_page()", cn=self.__class__.__name__)
 		
-		# Begin input line at position Page * CharactersPerPage + offset ("say ") 
-		#cmd_start_pos = input_page_pos * self.input_page_size + offset
-		
-		# End input line at 
-		#cmd_end_pos = (input_page_pos + 1) * self.input_page_size + offset
 		
 		try:
 			# Substitute \n for \\
 			tmp_cmd = self.command.replace('\n', u'¬')
 			
 			# Command line page to display
-			if cmd_end_pos:
-				self.dlog.msg(str(cmd_pages[input_page_pos]) + ":" + str(cmd_end_pos))
+			if input_page_pos == None:
+				cmd_display_part = tmp_cmd
+			elif cmd_end_pos:
+				self.dlog.msg("--Segment      : [" + str(cmd_pages[input_page_pos]) + ":" + str(cmd_end_pos) + "]")  
 				cmd_display_part = tmp_cmd[cmd_pages[input_page_pos]:cmd_end_pos]
 			else:
-				self.dlog.msg(str(cmd_pages[input_page_pos]) + ":" )
+				self.dlog.msg("--Segment      : [" + str(cmd_pages[input_page_pos])  + ":]" )
 				cmd_display_part = tmp_cmd[cmd_pages[input_page_pos]:]
 			
 			# Clear command input line
@@ -1363,8 +1377,8 @@ class CommandInterpreter(threading.Thread):
 				raise OverflowError("String to display exceeds input page size xowox")
 			
 			# Output command input page
-			#elf.dlog.msg("Drawing: " + cmd_display_part.encode('utf-8'))
-			self.stdscr.addstr(self.screensize_y-1, len(self.cmd_prefix), cmd_display_part.encode('utf-8'))
+			#self.dlog.msg("Drawing: " + cmd_display_part.encode('utf-8'))
+			#self.stdscr.addstr(self.screensize_y-1, len(self.cmd_prefix), cmd_display_part.encode('utf-8'))
 			
 		except IndexError as err:
 			self.dlog.warn(err, msg=">>> in refresh_cmd_page()")	
@@ -1379,24 +1393,44 @@ class CommandInterpreter(threading.Thread):
 		
 		finally:
 			self.stdscr.addstr(self.screensize_y-1, len(self.cmd_prefix), cmd_display_part.encode('utf-8'))
+			#if x:
+			self.stdscr.move(self.screensize_y-1, self.clinepos)
+			
 		
-		
-		#input_page_pos = (self.command_pos-offset)/self.input_page_size # current input page number starting at 0
+		self.dlog.msg("--Page Size    : " + str(self.input_page_size) +  " | Page: " + str(input_page_pos), 5)
+		self.dlog.msg("--CMD Length   : " + str(len(self.command)) + " Position: " + str(self.command_pos) + " clinepos: " + str(self.clinepos), 5)
+		self.dlog.msg("--+cmd_pos     : " + str(self.command_pos) + "-" + str(offset) + "/" + str(self.input_page_size) + " = " + str(input_page_pos), 5)
 
-# 		self.dlog.msg("--Page Size : " + str(self.input_page_size) +  " | Page: " + str(input_page_pos))
-# 		self.dlog.msg("--Segment   : [ "+ str(input_page_pos*self.input_page_size) + " or " + str(offset) + ":" + str((input_page_pos+1)*self.input_page_size) + " ]")
-# 		self.dlog.msg("--CMD Length: " + str(len(self.command)) + " Position: " + str(self.command_pos) + " clinepos: " + str(self.clinepos) )
-# 		self.dlog.msg("--+cmd_pos: " + str(self.command_pos) + "-" + str(offset) + "/" + str(self.input_page_size) + " = " + str(input_page_pos))
+	
 
-		
 	def adjust_clinepos(self, characters=1):
+		# offset for "say "
+		offset = 0
+		if self.tmode:
+			offset = 4
+			
+		if characters == 0:
+			raise IndexError("Argument can not be zero.")
+			
+		if len(self.command[offset:self.command_pos]) + characters < 0:
+			raise IndexError("Can't move cursor " + str(characters) + " characters to the left.")
+		
+		if self.command_pos + characters > len(self.command):
+			raise IndexError("Can't move cursor " + str(characters) + " characters to the right.")
+		
+		
+		self.command_pos += characters
+		self.refresh_cmd_page()
+			
+	
+	def adjust_clinepos_old(self, characters=1):
 		''' move clinepos and command_pos by (-)n characters'''
 		
 		if characters == 0:
 			raise IndexError("Argument can not be zero.")
 		#self.dlog.msg("--cmdlen: " + str(len(self.command)) + "Command Position: " + str(self.command_pos) + " clinepos: " + str(self.clinepos) )
 
-		self.refresh_cmd_page()
+		#self.refresh_cmd_page()
 		# offset for "say "
 		offset = 0
 		if self.tmode:
@@ -1441,6 +1475,8 @@ class CommandInterpreter(threading.Thread):
 
 				
 				try:
+					y, x = self.stdscr.getyx()
+
 					# Need to move over two single width characters for wide unicode characters
 					if shift > 0:
 						char = u''.join(self.command[self.command_pos:self.command_pos+shift])
@@ -1458,6 +1494,8 @@ class CommandInterpreter(threading.Thread):
 					else:
 						self.stdscr.addstr(self.screensize_y-1, 0, "[<]")
 						
+					self.stdscr.move(y, x)
+						
 						
 						
 				except UnicodeError as err:
@@ -1472,8 +1510,9 @@ class CommandInterpreter(threading.Thread):
 		except Exception as err:
 			self.dlog.excpt(err, msg=">>adjust_clinepos()", cn=self.__class__.__name__)
 			
-		self.refresh_cmd_page()	
-		self.stdscr.move(self.screensize_y-1, self.clinepos)
+		
+		#self.stdscr.move(self.screensize_y-1, self.clinepos)
+		self.refresh_cmd_page(self.clinepos)	
 
 				
 	
