@@ -8,7 +8,7 @@ class Titlebar(Bar):
 		super(Titlebar, self).__init__(stdscr)
 		self.screensize_y, self.screensize_x = stdscr.getmaxyx()
 		self.sb_blank = 1
-		self.set_title(u"yottu v0.2 - https://github.com/yottu/yottu".encode('utf-8')
+		self.set_title(u"yottu v0.3 - https://github.com/yottu/yottu".encode('utf-8')
 		)
 		
 	def draw(self):

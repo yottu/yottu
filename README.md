@@ -48,6 +48,7 @@ p, n 		- 	previous/next window
 board 		- set board context (e.g. /board int for /int/)
 catalog 	- list threads of board context
 join <thread>	- open thread
+join board/<search term>	- join thread or open catalog for multiple matches
 Curser Up/Down 	- Cycle through command/text mode history
 
 autojoin 		- list threads to join on program start

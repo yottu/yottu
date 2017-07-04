@@ -33,7 +33,8 @@ def main(argv):
 		
 	try:
 		dlog = DebugLog(wl)
-		dlog.msg("Logging started")
+		dlog.msg("Logging debug output to ./" + str(dlog.outputFile))
+		dlog.msg("Images will be cached in ./cache/")
 
 		ci = CommandInterpreter(stdscr, wl)
 		ci.start()
