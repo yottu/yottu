@@ -1,11 +1,11 @@
-import urllib2
-import json
-import DebugLog
+import requests
 import socket
+import json
 import curses
+import DebugLog
+from Config import Config
 import os
-from StringIO import StringIO
-import gzip
+from requests.exceptions import SSLError, HTTPError
 
 class Autism:
 	def __init__(self, board, threadno="catalog", domain="a.4cdn.org"):
@@ -15,6 +15,7 @@ class Autism:
 		self.jsoncontent = ""
 		self.lasttime = ""
 		self.dlog = DebugLog.DebugLog()
+		self.cfg = Config(debug=False)
 		self.stdscr = None
 
 	@property
@@ -32,7 +33,8 @@ class Autism:
 	# source can be "board" or "catalog" or "image"
 	def _query(self, source, image_filename=None):
 		''' Returns datastream of a url generated from its context '''
-		chunkSize = 4096
+					
+		chunk_size = 4096
 		for i in range(1, 10):
 			try:
 				timeout = 300*i
@@ -55,26 +57,19 @@ class Autism:
 				self.dlog.msg("JsonFetcher: In _query for " + uri, 5)
 
 				
-				request = urllib2.Request(uri)
-				request.add_header('Accept-encoding', 'gzip')
+				headers = {'Accept-encoding': 'gzip'}
 
 				socket.setdefaulttimeout(timeout) # TODO user setting
 			
 				if (source != "image" and self.lasttime != ""):
-					request.add_header('If-Modified-Since', self.lasttime)
+					headers.update({'If-Modified-Since': self.lasttime})
 				
 				# Fetch data and store into content
-				opener = urllib2.build_opener()
-				datastream = opener.open(request)
 				content = ""
-				while True:
+				request = requests.get(uri, headers=headers, stream=True)
+				request.raise_for_status()
+				for data in request.iter_content(chunk_size=chunk_size):
 
-					data = datastream.read(chunkSize)
-					if not data:
-						if datastream.info().get('Content-Encoding') == 'gzip':
-							f = gzip.GzipFile(fileobj=StringIO(content))
-							content = f.read()
-						break
 					socket.setdefaulttimeout(timeout)
 					content += data
 					
@@ -87,29 +82,51 @@ class Autism:
 							sb_progress = ""
 							self.stdscr.addstr(screensize_y-2, screensize_x-3-len(statusText), statusText, curses.color_pair(1))  # @UndefinedVariable
 							self.stdscr.refresh()
-						except:
+						except Exception as err:
+							self.dlog.warn(err, logLevel=3, msg=">>>in ContentFetcher.query()")
 							continue
 						
 					#self.dlog.msg("ContentFetcher: Data transmission from >>>/" + self.board + "/" + self.threadno + "/ (" + str((len(content)+len(data))/1024) + "K)", 3)
 				
 				if source == "board":
-					self.lasttime = datastream.headers.get('Last-Modified')
+					#self.lasttime = datastream.headers.get('Last-Modified')
+					self.lasttime = request.headers.get('Last-Modified')
+
+#				# TODO: remove, requests seems to automatically deflate				
+# 				try:
+# 					if request.headers.get('Content-Encoding') == 'gzip':
+# 						content = gzip.GzipFile(fileobj=StringIO(content)).read()
+# 				except:
+# 					pass
+				
+				# Raise redirection status codes mainly to catch 304 Not Modified
+				if 300 <= request.status_code < 400:
+					http_error_msg = u'%s' % (request.status_code)
+					http_error = HTTPError(http_error_msg, response=request)
+					raise(http_error)
+				
+				request.raise_for_status()
 				
 				return content
 			
-			except urllib2.ssl.SSLError as e:
+			except SSLError as e:
 				self.dlog.msg(str(e) + " New timeout: " + str(timeout))
 				continue
-			except urllib2.HTTPError:
-					raise
+			except HTTPError:
+				raise
 			except Exception:
 				raise
 			break
 		
 	def save_image(self, img_tim, img_ext, orig_filename, thumb=False):
 		try:
-			target_path = "./cache/" # FIXME should be set through Config.py
-			thumb_path = "./cache/thumbs/"
+
+			if img_ext.lower() == ".webm":
+				target_path = self.cfg.get('file.video.directory')
+			else:
+				target_path = self.cfg.get('file.image.directory')
+				
+			thumb_path = self.cfg.get('file.thumb.directory')
 			target_ext = img_ext.lower()
 		
 		
@@ -142,9 +159,6 @@ class Autism:
 	
 		except:
 			raise
-		
-		
-
 
 	# FIXME just return the content
 	def get(self, source="board"):

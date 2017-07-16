@@ -1,4 +1,6 @@
 import time
+from Config import Config
+from os.path import expanduser
 
 '''
 Created on Sep 28, 2015
@@ -9,9 +11,19 @@ class DebugLog(object):
 
 	
 	def __init__(self, wl='000', outputFile="debug.log", debugLevel=3):
-		self.debugLevel = debugLevel
-		self.outputFile = outputFile
+		
 		self.wl = wl
+		cfg = Config(debug=False)
+		
+		try: 
+			self.outputFile = cfg.get('log.file.location') 
+			self.outputFile = expanduser(self.outputFile)
+		except:
+			self.outputFile = outputFile
+			
+		try: self.debugLevel = cfg.get('log.level')
+		except:	self.debugLevel = debugLevel
+		
 		
 	def compad(self, message):
 		if self.wl != '000':

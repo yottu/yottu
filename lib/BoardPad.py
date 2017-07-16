@@ -8,6 +8,7 @@ from PostReply import PostReply
 from DebugLog import DebugLog
 from TermImage import TermImage
 from Autism import Autism
+from Config import Config
 import thread
 import time
 
@@ -22,6 +23,8 @@ class BoardPad(Pad):
 		self.threadno = ""
 		self.comment = ""
 		self.subject = "" # TODO not implemented
+		
+		
 		
 		self.filename = None
 		self.ranger = False # If true filename contains path to actual filename
@@ -204,10 +207,9 @@ class BoardPad(Pad):
 			postno = int(postno)
 			if not self.tdict:
 				raise self.NoDictError("BoardPad has no thread dictionary.")
-			
 			img_ext =  str(self.get_tdict()[postno]['ext']) # image extension, eg ".jpg"
 			img_tim = str(self.get_tdict()[postno]['tim'])  # Actual filename as saved on server
-			orig_filename = str(self.get_tdict()[postno]['filename']) # Uploaders filename
+			orig_filename = u''.join(self.get_tdict()[postno]['filename']) # Uploaders filename
 			
 			# Return if post has no image attached
 			if not img_ext or not img_tim:
@@ -220,23 +222,78 @@ class BoardPad(Pad):
 		target_filename = self.threadFetcher.save_image(img_tim, img_ext, orig_filename, thumb=thumb)
 		
 		try:
+			cfg = Config(debug=False)
+			
+			if img_ext.lower() in [ ".jpg", ".png", ".gif" ]:
+				file_path = cfg.get('file.image.directory')
+			else:
+				file_path = cfg.get('file.video.directory')
+				
 			# use external viewer (e.g. feh)
-			if ext is True:
-				TermImage.display_ext(target_filename, fullscreen=fullscreen, path="./cache/", setbg=setbg)
+			
+			if ext is True and img_ext == ".webm":
+				self.dlog.msg("--Testing")
+				subfile = file_path + cfg.get('file.video.subfile')
+				if self.threadFetcher.dictOutput.create_sub(postno=postno, subfile=subfile):
+					TermImage.display_ext(target_filename, fullscreen=fullscreen, path=file_path, setbg=setbg, subfile=subfile)
+				else:
+					TermImage.display_ext(target_filename, fullscreen=fullscreen, path=file_path, setbg=setbg)
+				
+			elif ext is True:
+				TermImage.display_ext(target_filename, fullscreen=fullscreen, path=file_path, setbg=setbg)
+				
 				
 			else:
-				if img_ext == ".jpg" or img_ext == ".png" or img_ext == ".gif":
-					file_path = "./cache/"
-					if thumb:
-						file_path += "thumbs/"
-
-					TermImage.display(target_filename, file_path)
+				if thumb:
+					file_path = cfg.get('file.thumb.directory')
 					
-				else:
-					self.dlog.msg(img_ext + " filename not viewable.")
+				TermImage.display(target_filename, file_path)
+					
+
 					
 		except Exception as err:
 			self.dlog.msg("Exception in TermImage call: " + str(err))
+			
+	def play_all_videos(self):
+		try:
+			# Create list with post numbers containing videos
+			postno_vlist = []
+			for postno, values in self.tdict.items():
+				if values['ext'].lower() == ".webm":
+					postno_vlist.append(postno)
+			
+			
+			for i, postno in enumerate(postno_vlist, 1):
+					
+					# Download next video in a thread
+					if i < len(postno_vlist):
+						thread.start_new_thread(self.download_image, (postno_vlist[i],))
+					
+					# Play current video	
+					self.show_image(postno, ext=True, fullscreen=True)
+					
+		except Exception as err:
+			self.dlog.excpt(err, msg=">>>in play_all_videos()", cn=self.__class__.__name__)
+	
+	def download_image(self, postno):
+		try:
+			postno = int(postno)
+			if not self.tdict:
+				raise self.NoDictError("BoardPad has no thread dictionary.")
+			img_ext =  str(self.get_tdict()[postno]['ext']) # image extension, eg ".jpg"
+			img_tim = str(self.get_tdict()[postno]['tim'])  # Actual filename as saved on server
+			orig_filename = u''.join(self.get_tdict()[postno]['filename']) # Uploaders filename
+			
+			# Return if post has no image attached
+			if not img_ext or not img_tim:
+				return None
+			
+		except Exception as err: 
+			self.dlog.msg("BoardPad: Exception in assembling filename name: " + str(err))
+			raise
+
+		target_filename = self.threadFetcher.save_image(img_tim, img_ext, orig_filename)
+		
 			
 	def download_images(self):
 		Pad.download_images(self)

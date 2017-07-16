@@ -10,7 +10,7 @@ from DebugLog import DebugLog
 import curses
 import time
 import threading
-import urllib2
+from requests.exceptions import HTTPError
 
 class ThreadFetcher(threading.Thread):
 	def __init__(self, threadno, stdscr, board, bp, nickname):
@@ -113,20 +113,26 @@ class ThreadFetcher(threading.Thread):
 				elif self.update_n > 1:
 					self.update_n -= 1
 				
-			except urllib2.HTTPError as e:
+			except HTTPError as e:
+				error_code = e.response.status_code
 				
 				# stop updating if thread 404'd
-				if e.code == 404:
-					self.sb.setStatus(str(e))
+				if error_code == 404:
+					self.sb.setStatus(str(e.response.reason) + ": " + str(e.response.url))
 					dlog.excpt(e)
 					break
 				
+				# assume temporary error for e.g. 403	
+				elif  400 <= error_code < 500:
+					self.sb.setStatus(str(e.response.reason) + ": " + str(e.response.url))
+					dlog.warn(e)
+				
 				# increase update interval on stale thread 
-				elif e.code == 304:
+				elif error_code == 304:
 					if self.update_n < 20:
 						self.update_n += 1
 
-					self.sb.setStatus(str(e.code))
+					self.sb.setStatus(str(error_code))
 			except Exception as e:
 				self.sb.setStatus(str(e))
 				dlog.excpt(e)

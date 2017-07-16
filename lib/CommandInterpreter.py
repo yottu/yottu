@@ -15,12 +15,14 @@ import json
 from urllib2 import HTTPError
 from PostReply import PostReply
 from ConfigParser import NoOptionError
+from itertools import izip
 import sys
 import unicodedata
 import subprocess
 from __builtin__ import isinstance
 from CatalogPad import CatalogPad
 import time
+import thread
 
 class CommandInterpreter(threading.Thread):
 	def __init__(self, stdscr, wl):
@@ -38,7 +40,7 @@ class CommandInterpreter(threading.Thread):
 		
 		Thread.__init__(self)
 		
-		self.cfg = Config.Config(".config/yottu/", "config")
+		self.cfg = Config.Config()
 		
 		# For Saving/Restoring window state #FIXME
 		#self.state_file = "state.pickle"
@@ -66,27 +68,63 @@ class CommandInterpreter(threading.Thread):
 		
 		curses.curs_set(False)  # @UndefinedVariable
 		self.terminate = 0
-		self.dlog = DebugLog(self.wl, debugLevel=3)
+		self.dlog = None
 		
 		self.nickname = ""
+		
+		self.socks_proxy_enabled =  False
+		self.socks_proxy_port = None
+		self.socks_proxy_addr = None
+		
 		self.readconfig()
 		
 		self.autojoin()
 		
+
+		
 		#self.restore_state()
+	
+	# TODO implement correctly, test, use requests[socks] rather than monkeypatching	
+	def use_socks_proxy(self):
+		try:
+			import socks
+			import socket
+			ESOCKS = False
+		except:
+			ESOCKS = True
+			
+		# If true this will route all connections through a socks5 proxy
+		if self.socks_proxy_enabled:
+			if ESOCKS:
+				raise ImportError("Socks proxy is configured, but module socks is not installed. \
+				Try running `pip install PySocks`")
+			else:
+				socks.set_default_proxy(socks.SOCKS5, self.socks_proxy_addr, int(self.socks_proxy_port))
+				socket.socket = socks.socksocket
+				self.dlog.msg("SOCKS5 proxy active: " + str(self.socks_proxy_addr) + ":" + str(self.socks_proxy_port))
+
+		else:
+			socks.set_default_proxy()
+			socket.socket = socks.socksocket
+			self.dlog.msg("SOCKS5 proxy inactive.")
 		
 	def readconfig(self):
 		try:
 			self.cfg.readConfig()
 			
-			self.context = self.cfg.get("default_context")
-			self.nickname = self.cfg.get("nickname")
+			self.dlog = DebugLog(self.wl, debugLevel=int(self.cfg.get("log.level")))
+			
+			self.context = self.cfg.get("board.default")
+			
+			self.nickname = self.cfg.get("user.name") or ""
 			self.wl.set_nickname(self.nickname)
-
-		
-		except KeyError or NoOptionError or ValueError as err:
+			
+			self.socks_proxy_enabled = self.cfg.get("proxy.socks.enable")
+			self.socks_proxy_port = self.cfg.get("proxy.socks.port")
+			self.socks_proxy_addr = self.cfg.get("proxy.socks.address")
+			
+		except (KeyError, NoOptionError, ValueError) as err:
 			self.dlog.warn(err, 3)
-			pass
 			
 		except Exception as err:
 			self.dlog.excpt(err, 3, "in " + str(type(self)) + " function: " + str(sys._getframe().f_code.co_name))
@@ -96,6 +134,7 @@ class CommandInterpreter(threading.Thread):
 			# Set defaults
 			if not self.context: self.context = "g"
 			if not self.nickname: self.wl.set_nickname(None)
+			self.use_socks_proxy()
 		
 	# FIXME: context not saved, ConfigParser limited to one string (one thread)
 	# FIXME: key value should actually assign values to keys {'threadno': 12345, 'board': 'int'} 
@@ -282,7 +321,7 @@ class CommandInterpreter(threading.Thread):
 				self.clinepos += 1
 				if self.tmode:
 					self.stdscr.addstr(self.screensize_y-1, 0, "[>]", curses.A_BOLD)  # @UndefinedVariable
-				else:
+				elif self.cmode and self.command_history_pos == len(self.command_history):
 					self.stdscr.addstr(self.screensize_y-1, 0, "[/]", curses.A_BOLD)  # @UndefinedVariable
 
 
@@ -385,6 +424,7 @@ class CommandInterpreter(threading.Thread):
 				self.clinepos = 4
 
 				self.cstrout(cmd.encode('utf-8'))
+				#self.stdscr.addstr(self.screensize_y-1, 0, "[" + str(self.command_history_pos) + "]", curses.A_BOLD)
 				
 
 		except (TypeError, UnicodeDecodeError, UnicodeEncodeError) as err:
@@ -579,10 +619,40 @@ class CommandInterpreter(threading.Thread):
 				raise
 		
 		# Ignore feature
-		elif re.match("ignore", self.command):
+		elif re.match("ignore", self.command) or re.match("except", self.command):
+			list = cmd_args.pop(0)
+			
+			if list == "ignore":
+				filterlist = self.cfg.get('filter.ignore.list')
+			elif list == "except":
+				filterlist = self.cfg.get('filter.except.list')
+		
+			def list_filter(filterlist):
+				self.wl.compadout(u"Filter rules for list " + list + u":")
+				for i, rule in enumerate(json.loads(filterlist)):
+					output = unicode(i)
+					for section in json.loads(rule['filter']):
+						output += u" " + section + ": " + unicode(json.loads(rule['filter'])[section])
+					#for i, pattern in enumerate(json.loads(rule['pattern'])):
+					#	if i%2 == 0:
+					#		output += u" - pattern: " + unicode(pattern) + " in " + unicode(json.loads(rule['pattern'])[i+1])
+					self.wl.compadout(output)
+						
+				
+				
 			if cmd_args_count == 0:
-				self.wl.compadout("no ignore in list")
+				if filterlist:
+					list_filter(filterlist)
+				else:	
+					self.wl.compadout(u"There are no filter rules in list " + list)
 				return
+			else:
+				# build dict from array
+				i = iter(cmd_args)
+				filter_dict = dict(izip(i, i))
+				
+				# add it to the filter list # TODO validation
+				self.cfg.add('filter.' + list + ".list", 'filter', json.dumps(filter_dict))
 				
 			try:
 				pass
@@ -646,6 +716,9 @@ class CommandInterpreter(threading.Thread):
 			
 		elif re.match("save", self.command):
 			self.cfg.writeConfig()
+			if self.cfg.get('config.autoload'):
+				self.dlog.msg("Autoloading..")
+				self.readconfig()
 			
 		elif re.match("nick", self.command):
 			cmd_args.pop(0)
@@ -662,15 +735,25 @@ class CommandInterpreter(threading.Thread):
 				configItems = self.cfg.getSettings()
 				self.wl.compadout("[Main]")
 				for pair in configItems:
-					self.wl.compadout(pair[0] + ": " + pair[1])
+					self.wl.compadout(pair[0] + ": " + str(pair[1]))
 					
-			# Else assign new value to setting
+			# Else assign new value to setting, save & load if configured
 			else:
 				key = cmd_args[1]
 				val = ' '.join(cmd_args[2:])
 				try:
 					self.cfg.set(key, val)
-					self.dlog.msg("Set " + key + " = " + val)
+					self.dlog.msg("Set " + key + " = " + str(val))
+					
+					if self.cfg.get('config.autosave'):
+						self.dlog.msg("Autosaving..")
+						self.cfg.writeConfig()
+					
+						if self.cfg.get('config.autoload'):
+							self.dlog.msg("Autoloading..")
+							self.readconfig()
+						
+					
 				except Exception as e:
 					self.dlog.excpt(e)
 					
@@ -1191,6 +1274,9 @@ class CommandInterpreter(threading.Thread):
 					# Quit yottu
 					if alt_key == 'q':
 						self.terminate = 1
+						
+					elif alt_key == 'F':
+						thread.start_new_thread(self.wl.get_active_window_ref().play_all_videos, ())
 						
 					elif self.change_window(alt_key):
 						continue

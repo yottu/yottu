@@ -31,7 +31,7 @@ class TermImage(object):
     def exec_cmd(full_cmd):
         if isinstance(full_cmd, list):
             with open(os.devnull, 'w') as f:
-                proc = subprocess.Popen(full_cmd, stdout=f, stderr=subprocess.STDOUT)
+                return subprocess.Popen(full_cmd, stdout=f, stderr=subprocess.STDOUT)
         
     @staticmethod
     def display(filename, path="./"):
@@ -95,7 +95,7 @@ class TermImage(object):
             raise
         
     @staticmethod        
-    def display_webm(filename, fullscreen=False, path="./", **unused):
+    def display_webm(filename, fullscreen=False, path="./", subfile=False, wait=True, **unused):
         ''' Returns: (stdoutdata, stderrdata)'''
         try:
             cmd = "mpv"
@@ -105,9 +105,14 @@ class TermImage(object):
             if fullscreen:
                 options.append('-fs')
             
+            if subfile:
+                options.append('--sub-file=' + str(subfile))
+            
             full_cmd = [cmd] + default_options + options + [path+filename]
             
-            TermImage.exec_cmd(full_cmd)
+            proc = TermImage.exec_cmd(full_cmd)
+            if wait:
+                proc.wait()
             return
         
         except:
@@ -118,7 +123,7 @@ class TermImage(object):
         ''' Returns: (stdoutdata, stderrdata)'''
         try:
             cmd = "sxiv"
-            default_options = ['-q'] # quiet
+            default_options = ['-q', '-a'] # quiet, play animations
             
             
             options = []

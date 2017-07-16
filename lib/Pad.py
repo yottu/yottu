@@ -109,35 +109,42 @@ class Pad(object):
 			
 			# check if comment needs to be line wrapped, indent it if so
 			if indent:
-				stringpos = 0
 				
 				# iterate over every character, note that BoardPad sends a string
 				# for every word delimited by a space
-				for character in string:
+				for stringpos, character in enumerate(string.decode('utf-8')):
 					(self.pposy, self.pposx) = self.mypad.getyx()
 					
-					# wrap oversized word at the end of the line if it fits in one line
+					# FIXME: also == 'F' 
+					if (unicodedata.east_asian_width(u''.join(character)) or unicodedata.east_asian_width(u''.join(character)) == 'W') and self.pposx == self.pwidth-1:
+						self.mypad.addstr("\n")
+						
+						(self.pposy, self.pposx) = self.mypad.getyx()
+						self.size = self.pposy
+					
+					# wrap oversized word at the end of the line
 					if stringpos == 0:
 						space_needed = self.pposx + len(string)
-						indented_space = self.pmaxx - indent
-
-						if space_needed > self.pwidth and len(string) < indented_space:
+						#indented_space = self.pmaxx - indent
+							
+						if space_needed > self.pwidth:
 							self.mypad.addstr("\n")
 							
 							#self.line += u"\n".decode('utf-8')
 							(self.pposy, self.pposx) = self.mypad.getyx()
 							self.size = self.pposy
 					
+
+					
 					# indent after line wrap		
 					if self.pposx == 0:
 						self.mypad.addstr(" "*indent)
 						
 					# output the character and adjust the pad size
-					self.mypad.addstr(character, options)
+					self.mypad.addstr(character.encode('utf-8'), options)
 					(self.pposy, self.pposx) = self.mypad.getyx()
 					self.size = self.pposy
 					
-					stringpos += 1
 			
 			# add string to current position		
 			else:

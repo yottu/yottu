@@ -6,6 +6,7 @@ from lib.DebugLog import DebugLog
 from lib.CommandInterpreter import CommandInterpreter
 from lib.WindowLogic import WindowLogic
 from lib.Updater import Updater
+from lib.Config import Config
 import sys
 
 locale.setlocale(locale.LC_ALL, '')
@@ -32,9 +33,10 @@ def main(argv):
 		raise
 		
 	try:
+		#cfg  = Config()
 		dlog = DebugLog(wl)
-		dlog.msg("Logging debug output to ./" + str(dlog.outputFile))
-		dlog.msg("Images will be cached in ./cache/")
+		dlog.msg("Logging debug output to " + str(dlog.outputFile))
+		dlog.msg("Images will be cached in " + Config().get('file.image.directory'))
 
 		ci = CommandInterpreter(stdscr, wl)
 		ci.start()
