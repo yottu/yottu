@@ -86,10 +86,10 @@ class CommandInterpreter(threading.Thread):
 	
 	# TODO implement correctly, test, use requests[socks] rather than monkeypatching	
 	def use_socks_proxy(self):
+		ESOCKS = False
 		try:
 			import socks
 			import socket
-			ESOCKS = False
 		except:
 			ESOCKS = True
 			
@@ -103,7 +103,7 @@ class CommandInterpreter(threading.Thread):
 				socket.socket = socks.socksocket
 				self.dlog.msg("SOCKS5 proxy active: " + str(self.socks_proxy_addr) + ":" + str(self.socks_proxy_port))
 
-		else:
+		elif not ESOCKS:
 			socks.set_default_proxy()
 			socket.socket = socks.socksocket
 			self.dlog.msg("SOCKS5 proxy inactive.")
