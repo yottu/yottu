@@ -63,7 +63,7 @@ class TermImage(object):
             
         elif file_ext == "webm":
             TermImage.display_webm(filename, **kwargs)
-            
+        
         else:
             raise LookupError("No viewer for file extension configured: " + file_ext)
     
@@ -95,18 +95,26 @@ class TermImage(object):
             raise
         
     @staticmethod        
-    def display_webm(filename, fullscreen=False, path="./", subfile=False, wait=True, **unused):
+    def display_webm(filename, fullscreen=False, path="./", subfile=False, wait=True, stream=False, **unused):
         ''' Returns: (stdoutdata, stderrdata)'''
+        
+        # The local directory path when streaming from an URL is not needed
+        if stream:
+            path = ""
+            
         try:
             cmd = "mpv"
             default_options = ['--no-terminal']
-            
             options = []
             if fullscreen:
                 options.append('-fs')
-            
+                
             if subfile:
                 options.append('--sub-file=' + str(subfile))
+                
+            if stream:
+                # lua script to continuously re-read the subfile
+                options.append('--script=' + './lib/mpv-sub-reload.lua')
             
             full_cmd = [cmd] + default_options + options + [path+filename]
             

@@ -719,6 +719,22 @@ class CommandInterpreter(threading.Thread):
 			if self.cfg.get('config.autoload'):
 				self.dlog.msg("Autoloading..")
 				self.readconfig()
+				
+		elif re.match("mpv", self.command):
+			try:
+				mpv_source = cmd_args.pop(1)
+			except:
+				self.wl.compadout("Usage: /mpv <source>")
+				return
+			
+			# Check if executed on a BoardPad # FIXME this code is reused several times, make it a function
+			active_window = self.wl.get_active_window_ref()
+			if not isinstance(active_window, BoardPad):
+				self.dlog.msg("/mpv must be used in a thread.")
+				return
+			
+			active_window.video_stream(mpv_source)
+			
 			
 		elif re.match("nick", self.command):
 			cmd_args.pop(0)

@@ -274,6 +274,22 @@ class BoardPad(Pad):
 					
 		except Exception as err:
 			self.dlog.excpt(err, msg=">>>in play_all_videos()", cn=self.__class__.__name__)
+			
+	def video_stream(self, source):
+		try:
+			# Testing TODO clean up
+			
+			cfg = Config(debug=False)
+			file_path = cfg.get('file.video.directory')
+			subfile = file_path + cfg.get('file.video.subfile')
+			if self.threadFetcher.dictOutput.create_sub(postno=self.threadFetcher.dictOutput.originalpost['no'], subfile=subfile):
+				self.dlog.msg("Streaming from source " + source)
+				self.threadFetcher.dictOutput.append_to_subfile = True
+				TermImage.display_webm(source, stream=True, wait=False, fullscreen=True, path=file_path, subfile=subfile)
+				
+				
+		except Exception as err:
+			self.dlog.excpt(err, msg=">>>in video_stream()", cn=self.__class__.__name__)
 	
 	def download_image(self, postno):
 		try:

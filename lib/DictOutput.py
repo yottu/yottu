@@ -16,6 +16,7 @@ from bs4 import BeautifulSoup
 
 import warnings
 import unicodedata
+import time
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 class DictOutput(object):
@@ -27,6 +28,11 @@ class DictOutput(object):
 		self.nickname = self.bp.get_nickname()
 		self.comment_tbm = None
 		self.comment_tbm_timeout = 0
+		
+		self.subfile = None
+		self.subfile_start = None
+		self.append_to_subfile = False # Write new comment to subfile
+		
 		self.title = u"yottu v0.3 - https://github.com/yottu/yottu - Init: <DictOutput>".encode('utf-8')
 		self.cfg = Config()
 
@@ -331,6 +337,33 @@ class DictOutput(object):
 				pass
 		
 		
+		self.subfile_append(com)
+			
+
+		
+	
+	def subfile_append(self, com):
+		''' Output comment to subfile when streaming a video '''
+		if self.append_to_subfile:
+			
+			with open(self.subfile, 'a',) as fh:
+				
+				xpos = str((100+20)%480)
+				fh.write("Dialogue: 0," + self.subfile_time(time.time()) +".00," + self.subfile_time(int(time.time())+10) + ".00,testStyle,,")
+				fh.write('0000,0000,0000,,{\\move(1440,'
+						+ xpos + ',-512,' + xpos + ')}{\\fad(1000,1000)}')
+				fh.write(com.encode('utf-8')) # TODO FIXME Security
+				fh.write("\n") 
+		
+	
+	def subfile_time(self, thetime):
+		''' return time formatted for subtitle file (HH:MM:SS) '''
+		seconds_since_start = int(thetime) - int(self.subfile_start)
+		sec_format = str("%02i" % ((seconds_since_start)%60))
+		min_format = str("%02i" % ((seconds_since_start/60)%60))
+		hour_format = str("%02i" % ((seconds_since_start/60/60)%99))
+		time_formatted = hour_format + ":" + min_format + ":" + sec_format
+		return time_formatted
 	
 	def getTitle(self):
 		return self.title
@@ -338,6 +371,8 @@ class DictOutput(object):
 	# TODO this might need its own class
 	def create_sub(self, postno, subfile):
 		''' create a subfile for overlaying comments over webm '''
+		self.subfile = subfile
+		self.subfile_start = time.time()
 		try:
 			comments = []
 			for post in self.tdict:
@@ -351,7 +386,7 @@ class DictOutput(object):
 			if comments:
 				with open(subfile, 'w') as fh:
 					fh.write(u"[Script Info]\n# Thank you Liisachan from forum.doom9.org\n".encode('utf-8'))
-					fh.write("ScriptType: v4.00+\nCollisions: Normal\nPlayResX: 1280\n")
+					fh.write("ScriptType: v4.00+\nCollisions: Reverse\nPlayResX: 1280\n")
 					fh.write("PlayResY: 1024\nTimer: 100.0000\n\n")
 					fh.write("[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, ")
 					fh.write("SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, ")
@@ -372,7 +407,7 @@ class DictOutput(object):
 						fh.write("\n") 
 			else:
 				return False
-		except Exception as err:
+		except Exception:
 			raise
 		
 		return True
