@@ -157,6 +157,9 @@ class Config(object):
 	def readConfig(self):
 		''' read settings from file and to self.cfg (ConfigParser object) '''
 		try:
+			if not os.path.exists(self.homeDir + self.configDir) or not self.cfg.has_section('Main'):
+				self.createConfig()
+				
 			self.cfg.read(self.configFullPath)
 
 		except Exception as e:
@@ -164,15 +167,24 @@ class Config(object):
 				self.dlog.excpt(e)
 			
 			
-	def writeConfig(self):
-
+	def createConfig(self):
+		''' Create empty config file in configDir and add section Main '''
 		try:
 			if not os.path.exists(self.homeDir + self.configDir):
 				os.makedirs(self.homeDir + self.configDir)
 				
+			if not self.cfg.has_section('Main'):
+				self.cfg.add_section('Main')
+				
+		except Exception as e:
+			self.dlog.excpt(e)
+			
+	# write config to disk
+	def writeConfig(self):
+		try:
 			with open(self.configFullPath, 'wb') as fh:
 				self.cfg.write(fh)
-		
+			
 		except Exception as e:
 			self.dlog.excpt(e)
 			
@@ -193,6 +205,7 @@ class Config(object):
 			
 			# Get default settings
 			settings.update(self.defaults())
+			items = settings.items()
 			
 			# Overwrite with setting from config file
 			
@@ -211,9 +224,10 @@ class Config(object):
 		# Add section if it does not exist (currently only using 'Main')	
 		except NoSectionError:
 			self.cfg.add_section(section)
-			items = []
+			
 		except Exception as err:
 			self.dlog.excpt(err, msg=">>>in getSettings()", cn=self.__class__.__name__)
+			
 		return sorted(items)
 	
 # 	def get(self, key, section='Main'):

@@ -31,7 +31,9 @@ class DictOutput(object):
 		
 		self.subfile = None
 		self.subfile_start = None
+		self.subfile_lasttime = None # Time last sub got displayed
 		self.append_to_subfile = False # Write new comment to subfile
+		self.subfile_count = 0 # Number of comments in live subfile
 		
 		self.title = u"yottu v0.3 - https://github.com/yottu/yottu - Init: <DictOutput>".encode('utf-8')
 		self.cfg = Config()
@@ -347,21 +349,29 @@ class DictOutput(object):
 		if self.append_to_subfile:
 			
 			with open(self.subfile, 'a',) as fh:
+				# FIXME replace hardcoded 5 with subtitle display duration
+				xpos = str((self.subfile_count*100+20)%480)
 				
-				xpos = str((100+20)%480)
-				fh.write("Dialogue: 0," + self.subfile_time(time.time()) +".00," + self.subfile_time(int(time.time())+10) + ".00,testStyle,,")
-				fh.write('0000,0000,0000,,{\\move(1440,'
-						+ xpos + ',-512,' + xpos + ')}{\\fad(1000,1000)}')
-				fh.write(com.encode('utf-8')) # TODO FIXME Security
-				fh.write("\n") 
+				# ceil of comment length divided by 50 # FIXME hard coded 50
+				for i in range(0, -(-len(com))//50+1):
+					fh.write("Dialogue: 0," + self.subfile_time(time.time()+3*i) +".00," + self.subfile_time(int(time.time())+3*(i+1)) + ".00,testStyle,,")
+					fh.write('0000,0000,0000,,{\\move(1440,'
+							+ xpos + ',-512,' + xpos + ')}{\\fad(1000,1000)}')
+					fh.write(com.encode('utf-8')[i*50:(i+1)*50]) # TODO FIXME Security
+					fh.write("\n")
+					
+				self.subfile_count += 1 
 		
 	
 	def subfile_time(self, thetime):
 		''' return time formatted for subtitle file (HH:MM:SS) '''
-		seconds_since_start = int(thetime) - int(self.subfile_start)
-		sec_format = str("%02i" % ((seconds_since_start)%60))
-		min_format = str("%02i" % ((seconds_since_start/60)%60))
-		hour_format = str("%02i" % ((seconds_since_start/60/60)%99))
+		
+		# seconds since last subtitle was displayed
+		self.subfile_lasttime = int(thetime) - int(self.subfile_start)
+		
+		sec_format = str("%02i" % ((self.subfile_lasttime)%60))
+		min_format = str("%02i" % ((self.subfile_lasttime/60)%60))
+		hour_format = str("%02i" % ((self.subfile_lasttime/60/60)%99))
 		time_formatted = hour_format + ":" + min_format + ":" + sec_format
 		return time_formatted
 	
