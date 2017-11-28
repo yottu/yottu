@@ -11,6 +11,7 @@ from DebugLog import DebugLog
 import re
 from Titlebar import Titlebar
 from Statusbar import Statusbar
+from Config import Config
 
 class Pad(object):
 	reservedscreen = 3
@@ -63,7 +64,16 @@ class Pad(object):
 		self.__nickname = value
 		self.sb.set_nickname(self.nickname)
 
-
+	def autofocus(self):
+		''' Raise window on configuration directive '''
+		
+		cfg = Config(debug=False)
+		window_index = self.wl.get_window(self)
+		active_window_index = self.wl.get_active_window()
+		if cfg.get('window.board.autofocus') and window_index is not active_window_index:
+			self.wl.set_active_window(window_index)
+			self.autoScroll = True
+			self.auto_scroll()
 
 	# Updater polls this method every n seconds
 	def on_update(self):
@@ -75,15 +85,21 @@ class Pad(object):
 	def active(self):
 		self._active = True
 		
-		# Reset window's unread properties and remove unread status from status bar
+		if self.autoScroll and self.__position is self.size:
+			self.clear_unread_window_elements()
+
+		self.sb.draw()
+		self.tb.draw()
+		self.draw()
+	
+		
+	def clear_unread_window_elements(self):
+		''' Reset window's unread properties and remove unread status from status bar '''
+		
 		self.wl.set_property(self, 'sb_unread', False)
 		self.wl.windowListProperties[self]['sb_lines'] = 0
 		self.wl.windowListProperties[self]['sb_mentioned'] = False
 		self.generate_unread_window_element()
-		
-		self.sb.draw()
-		self.tb.draw()
-		self.draw()
 		
 	def inactive(self):
 		self._active = False
@@ -162,7 +178,7 @@ class Pad(object):
 			
 		# Increase unread line counter on inactive windows
 		if re.search(r'\n', string):
-			if not self._active:
+			if not self._active or not self.autoScroll:
 				try:
 					self.wl.set_property(self, 'sb_unread', True)
 					self.wl.windowListProperties[self]['sb_lines'] += 1
@@ -237,10 +253,26 @@ class Pad(object):
 		if self._active:
 			self.dlog.msg("set_position: moving to " + str(value), 5)
 			self.move(value)
+			
+			# Update position on new line
+			if self.__position is self.size:
+				self.autoScroll = True
+				
+				# Clear unread elements
+				self.clear_unread_window_elements()
+# 					
+# 			# Don't scroll if user is reading backlog
+# 			else:
+# 				self.autoScroll = False
+# 				self.generate_unread_window_element()
 		
 	def auto_scroll(self):
 		if self.autoScroll is True:
 			self.set_position(self.size)
+		
+		# TODO indicate there are new lines in the status bar
+		else:
+			pass
 			
 	# FIXME merge moveup and down into one def
 	def moveup(self, lines=1):
@@ -249,14 +281,21 @@ class Pad(object):
 			self.set_position(newPos)
 		else:
 			self.home()
+			
+		if newPos is not self.get_position()-lines:
+			self.autoScroll = False
+		else:
+			self.autoScroll = True
 		
 	def movedown(self, lines=1):
 		newPos = self.get_position()+lines
 		self.dlog.msg("self.size: " + str(self.size), 5)
 		if newPos <= self.size:
 			self.set_position(newPos)
+			self.autoScroll = False
 		else:
 			self.set_position(self.size)
+			self.autoScroll = True
 	
 	def home(self):
 		self.set_position(self.actualpmaxy)

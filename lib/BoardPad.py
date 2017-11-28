@@ -4,6 +4,7 @@ Created on Sep 28, 2015
 '''
 from Pad import Pad
 from ThreadFetcher import ThreadFetcher
+import curses
 from PostReply import PostReply
 from DebugLog import DebugLog
 from TermImage import TermImage
@@ -43,6 +44,7 @@ class BoardPad(Pad):
 		self.create_wait = 600  # static time to wait before making a new thread
 		
 		self.dlog = DebugLog(self)
+
 		
 	class NoDictError(Exception):
 		def __init__(self,*args,**kwargs):
@@ -103,7 +105,7 @@ class BoardPad(Pad):
 		try:
 			self.threadFetcher.active()
 		except:
-			raise
+			raise		
 		
 	def inactive(self):
 		super(BoardPad, self).inactive()
@@ -222,8 +224,8 @@ class BoardPad(Pad):
 		target_filename = self.threadFetcher.save_image(img_tim, img_ext, orig_filename, thumb=thumb)
 		
 		try:
-			cfg = Config(debug=False)
 			
+			cfg = Config(debug=False)
 			if img_ext.lower() in [ ".jpg", ".png", ".gif" ]:
 				file_path = cfg.get('file.image.directory')
 			else:

@@ -105,6 +105,8 @@ class ThreadFetcher(threading.Thread):
 				if self._active:
 					self.tb.set_title(self.dictOutput.getTitle())
 					
+				self.bp.autofocus()
+					
 				# reset interval on thread refresh
 				if self.update_n > 9:
 					self.update_n = 9

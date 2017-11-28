@@ -62,7 +62,11 @@ class Config(object):
 			'filter.except.list': '', # "[ {'filter': {'country': ['DE']}, 'pattern':[]}, {'filter': {'country': ['JP']}, 'pattern':[] } ]", #
 			'filter.ignore.list': '', # "[{'filter': {'name': 'Anonymous', 'country': ['DE', 'FR']}, 'pattern':['Japanese', 'OP']}]", #     
 			'log.file.location': './debug.log', # 
-			'log.level': '3' # 
+			'log.level': '3', # 0 (Nothing) - 5 (Everything)
+			'window.board.autofocus': 'True', # Focus board window on new messages
+			'window.catalog.autofocus': 'False', # Focus catalog window on new messages
+			'window.command.autofocus': 'False', # Focus command window on new messages
+			'window.highlight.autofocus': 'True', # Focus window on new highlight
 		
 			}
 
