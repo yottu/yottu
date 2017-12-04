@@ -453,6 +453,8 @@ class CommandInterpreter(threading.Thread):
 				# Don't display help when command line is in usage
 				if not self.cmode:
 					image_filename = activeWindow.tdict[int(self.postno_marked)]['filename']
+					image_filename +=activeWindow.tdict[int(self.postno_marked)]['ext']
+					image_filesize = activeWindow.tdict[int(self.postno_marked)]['fsize']
 					post_is_me = activeWindow.tdict[int(self.postno_marked)]['marked']
 					if post_is_me:
 						mark = "un[m]ark"
@@ -462,12 +464,16 @@ class CommandInterpreter(threading.Thread):
 					# generate help text
 					help_text = "Post: " + mark + " as own"
 					if image_filename:
-						help_text = "Image: [v]iew, [f]eh/ext ([F]ullscreen), [b]g - " + help_text 
+						help_text = " (" + str(image_filesize/1024) + "K) [v]iew, [f]eh/ext ([F]ullscreen), [b]g - " + help_text
+						max_filename_chars = self.screensize_x-9-len(help_text)
+						if max_filename_chars < len(image_filename):
+							image_filename = image_filename[:max_filename_chars] + "(..)"
+						help_text = image_filename + help_text 
 
 					# align right	
 					help_text = (self.screensize_x-5-len(help_text))*" " + help_text
 					
-					self.stdscr.addstr(self.screensize_y-1, 4, help_text[:self.screensize_x-5] )
+					self.stdscr.addstr(self.screensize_y-1, 4, help_text[:self.screensize_x-5], curses.A_DIM )  # @UndefinedVariable
 
 				self.wl.get_active_window_ref().show_image_thumb(self.postno_marked)
 			elif postno and isinstance(activeWindow, CatalogPad):

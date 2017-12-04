@@ -52,6 +52,10 @@ class ThreadFetcher(threading.Thread):
 		
 	def active(self):
 		self._active = True
+		try:
+			self.tb.set_title(self.dictOutput.getTitle())
+		except:
+			pass
 		self.tb.draw()
 		
 	def inactive(self):
@@ -74,6 +78,7 @@ class ThreadFetcher(threading.Thread):
 		
 		try:
 			self.dictOutput = DictOutput(self.bp)
+			self.bp.postReply.dictOutput = self.dictOutput # Needed for marking own comments
 		except Exception as e:
 			dlog.excpt(e)
 			self.stdscr.addstr(0, 0, str(e), curses.A_REVERSE)  # @UndefinedVariable
@@ -96,16 +101,19 @@ class ThreadFetcher(threading.Thread):
 			try:
 				self.sb.setStatus('')
 				self.contentFetcher.setstdscr(self.stdscr)
-				self.contentFetcher.get()
+				thread_state = self.contentFetcher.get()
 				thread = getattr(self.contentFetcher, "jsoncontent")
+				
+					
 				self.dictOutput.refresh(thread)
 				self.bp.set_tdict(self.dictOutput.get_tdict())
 				
-				
-				if self._active:
-					self.tb.set_title(self.dictOutput.getTitle())
-					
 				self.bp.autofocus()
+					
+				# Immediately refresh cached threads
+				if thread_state is "cached":
+					self.sb.draw("CACHED")
+					self.update()	
 					
 				# reset interval on thread refresh
 				if self.update_n > 9:
@@ -114,6 +122,8 @@ class ThreadFetcher(threading.Thread):
 				# decrease interval on highly active threads
 				elif self.update_n > 1:
 					self.update_n -= 1
+					
+
 				
 			except HTTPError as e:
 				error_code = e.response.status_code

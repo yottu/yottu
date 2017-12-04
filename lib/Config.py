@@ -52,12 +52,14 @@ class Config(object):
 			'user.options': '', #  
 			'user.name': '', #
 			'user.tripcode' : '', # 
+			'file.catalog.directory': './cache/catalogs/', #
 			'file.image.autodownload': 'False', # 
-			'file.image.directory': './cache/', # 
+			'file.image.directory': './cache/images/', # 
+			'file.thread.directory': './cache/threads/', #
 			'file.thumb.autodownload': 'False', # 
 			'file.thumb.directory': './cache/thumbs/', #
 			'file.video.autodownload': 'False', #  
-			'file.video.directory': './cache/', # 
+			'file.video.directory': './cache/videos/', # 
 			'file.video.subfile': 'subfile.ass', #
 			'filter.except.list': '', # "[ {'filter': {'country': ['DE']}, 'pattern':[]}, {'filter': {'country': ['JP']}, 'pattern':[] } ]", #
 			'filter.ignore.list': '', # "[{'filter': {'name': 'Anonymous', 'country': ['DE', 'FR']}, 'pattern':['Japanese', 'OP']}]", #     

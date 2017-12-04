@@ -14,8 +14,9 @@ class Autism:
 		self.threadno = threadno
 		self.jsoncontent = ""
 		self.lasttime = ""
+		self.tail_size = 0
+		self.cached_file_exists = False
 		self.dlog = DebugLog.DebugLog()
-		self.cfg = Config(debug=False)
 		self.stdscr = None
 
 	@property
@@ -34,7 +35,7 @@ class Autism:
 	def _query(self, source, image_filename=None):
 		''' Returns datastream of a url generated from its context '''
 					
-		chunk_size = 4096
+		chunk_size = 128
 		for i in range(1, 10):
 			try:
 				timeout = 300*i
@@ -43,7 +44,14 @@ class Autism:
 				
 				# Build uri path for thread or catalog
 				if source == "board":
-					path = "/" + self.board + "/thread/" + self.threadno + ".json"
+					path = "/" + self.board + "/thread/" + self.threadno
+					
+					# only fetch last 50 replies on update
+					if self.lasttime and self.tail_size:
+						path += "-tail"
+						
+					path += ".json"
+					
 				elif source == "catalog":
 					path = "/" + self.board + "/catalog.json"
 				elif source == "image":
@@ -67,6 +75,13 @@ class Autism:
 				# Fetch data and store into content
 				content = ""
 				request = requests.get(uri, headers=headers, stream=True)
+				
+				# Get content length for percentage progress
+				try:
+					content_length = int(request.headers['Content-length'])
+				except KeyError or ValueError:
+					content_length = False
+					
 				request.raise_for_status()
 				for data in request.iter_content(chunk_size=chunk_size):
 
@@ -77,9 +92,14 @@ class Autism:
 					if self.stdscr:
 						try:
 							screensize_y, screensize_x = self.stdscr.getmaxyx();
-							statusText = source.upper() + "-GET: " + str((len(content)+len(data))/1024) + "K"
+							statusText = " " + source.upper() + "-GET: " + str(len(content)/1024) + "K"
+							
+							# show the progress bar/total size for uncompressed images,
+							# TODO need to work with request.raw to get the correct size for gzip'd content 
+							if content_length and source == 'image':
+								statusText += "/" + str(content_length/1024) + "K" + "(" + str(len(content)*100/(content_length)) + "%)"
+								
 							curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_GREEN)  # @UndefinedVariable
-							sb_progress = ""
 							self.stdscr.addstr(screensize_y-2, screensize_x-3-len(statusText), statusText, curses.color_pair(1))  # @UndefinedVariable
 							self.stdscr.refresh()
 						except Exception as err:
@@ -107,7 +127,12 @@ class Autism:
 				
 				request.raise_for_status()
 				
+				# blank
+				self.stdscr.addstr(screensize_y-2, screensize_x-3-len(statusText), len(statusText)*" ", curses.color_pair(2))  # @UndefinedVariable
+
 				return content
+			
+				
 			
 			except SSLError as e:
 				self.dlog.msg(str(e) + " New timeout: " + str(timeout))
@@ -120,13 +145,14 @@ class Autism:
 		
 	def save_image(self, img_tim, img_ext, orig_filename, thumb=False):
 		try:
-
+			
+			cfg = Config(debug=False)
 			if img_ext.lower() == ".webm":
-				target_path = self.cfg.get('file.video.directory')
+				target_path = cfg.get('file.video.directory')
 			else:
-				target_path = self.cfg.get('file.image.directory')
+				target_path = cfg.get('file.image.directory')
 				
-			thumb_path = self.cfg.get('file.thumb.directory')
+			thumb_path = cfg.get('file.thumb.directory')
 			target_ext = img_ext.lower()
 		
 		
@@ -146,8 +172,7 @@ class Autism:
 				raise
 				
 			# Create path if it doesn't exist
-			if not os.path.isdir(target_path):
-				os.makedirs(target_path)
+			self.mkdir(target_path)
 				
 			# Fetch and write image if it doesn't already exist	
 			if not os.path.exists(target_path + target_filename):
@@ -160,10 +185,96 @@ class Autism:
 		except:
 			raise
 
-	# FIXME just return the content
+	# FIXME just return the content; i dont think the source thing is really needed as param
 	def get(self, source="board"):
+		
+		
+		if not self.jsoncontent:
+			try:
+				cfg = Config(debug=False)
+				
+				if source is "board":
+					target_path = cfg.get('file.thread.directory')
+					target_filename = self.board + "-" + self.threadno + ".json"
+				elif source is "catalog":
+					target_path = cfg.get('file.catalog.directory')
+					target_filename = self.board + "-catalog.json"
+				
+				self.dlog.msg("Reading " + source + " from: " + target_path + target_filename)	
+				with open(target_path + target_filename, "r") as f:
+						self.jsoncontent = json.loads(f.read())
+						
+				self.lasttime = self.jsoncontent['posts'][0]['last-modified']
+				self.dlog.msg("Last-Modified: " + self.lasttime)
+				
+				self.cached_file_exists = True
+				return "cached"
+			
+			except Exception as e:
+				self.dlog.warn(e, ">>>in ContentFetcher.get()")
+		else:
+			pass #content = self._query(source)
+		
 		content = self._query(source)
+
+
+
+		# Add If-Modified-Since value
+		#content['posts'][0].update({u'last-modified':u''.join(self.lasttime)})
+		
 		self.jsoncontent = json.loads(content)
+		
+		#self.dlog.msg(json.dumps(self.jsoncontent['posts'][0]))
+		#content = json.dumps(self.jsoncontent)
+		if source is 'board':
+			self.jsoncontent['posts'][0].update({u'last-modified':u''.join(self.lasttime)})
+			
+		# catalog does not provide a last modified date, could implement own date check	
+		#elif source is 'catalog':
+		#	self.jsoncontent[0].update({u'last-modified':u''.join(self.lasttime)})
+
+		
+		#self.jsoncontent['yottu'] = ['']
+		# Set the tail size in ContentFetcher if the thread has one
+		try:
+			self.tail_size = self.jsoncontent['posts'][0]['tail_size']
+		except KeyError: # Thread with less than 100 replies
+			self.tail_size = 0
+		except TypeError: # Catalog
+			self.tail_size = 0
+		except Exception as e:
+			self.dlog.warn(e, 4, ">>>in ContentFetcher.get()")
+			self.tail_size = 0
+		finally:
+			self.save_jsoncontent(source, content)
+			
+		return
+			
+	def save_jsoncontent(self, source, content):
+		cfg = Config(debug=False)
+		if source is "board":
+			target_path = cfg.get('file.thread.directory')
+			target_filename = self.board + "-" + self.threadno + ".json"
+		elif source is "catalog":
+			target_path = cfg.get('file.catalog.directory')
+			target_filename = self.board + "-catalog.json"
+			
+		self.mkdir(target_path)
+		
+		
+		
+		# Dump json to file unless it is just the tail
+		if not self.tail_size or not self.cached_file_exists:
+			self.dlog.msg("Saving " + source + " to: " + target_path + target_filename)
+			with open(target_path + target_filename, "w") as f:
+				f.write(json.dumps(self.jsoncontent))
+		
+			
+				
+	def mkdir(self, dir):
+			''' Create directory plus parents if it doesn't exist '''
+			if not os.path.isdir(dir):
+				os.makedirs(dir)
 		
 	def setstdscr(self, stdscr):
 		self.stdscr = stdscr

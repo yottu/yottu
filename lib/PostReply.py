@@ -206,6 +206,9 @@ class PostReply(object):
         if response.status_code == 200 and self.dictOutput:
             self.dictOutput.mark(comment)
             self.bp.post_success(int(time.time()))
+        else:
+            self.dlog.msg("response.status_code: " + str(response.status_code))
+            self.dlog.msg("self.dictOutput: " + str(self.dictOutput))
         
         
         return response.status_code

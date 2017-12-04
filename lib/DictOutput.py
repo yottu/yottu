@@ -62,9 +62,34 @@ class DictOutput(object):
 		except:
 			raise
 		
-		
 		#self.tdict['OP'] = {'no': 213, 'com': 'unset', 'sub': 'unset'.encode('utf-8'), 'semantic-url': 'unset'.encode('utf-8')}
 		
+		# Post is OP # FIXME idk why I'm making this so complicated
+		try:
+				try: 
+					self.originalpost.update({'no': self.thread['posts'][0]['no']})
+				except: 
+					self.originalpost.update({'no': 1234567890})
+					pass
+				
+				try: self.originalpost.update({'semantic_url': self.thread['posts'][0]['semantic_url'].encode('utf-8')})
+				except: pass 
+				
+				try:
+					com = self.clean_html(self.thread['posts'][0]['com']) 
+					self.originalpost.update({'com': com.encode('utf-8')})
+				except: pass
+				
+				try:
+					sub = self.clean_html(self.thread['posts'][0]['sub'])
+					self.originalpost.update({'sub': sub.encode('utf-8')})
+				except:
+					pass
+				
+		
+		except Exception as e:
+			debug.msg("DictOutput: Error while processing OP: " + str(e))
+			raise
 		
 		for posts in self.thread['posts']:
 			try:
@@ -73,33 +98,33 @@ class DictOutput(object):
 				no = posts['no']
 				
 				
-				# Post is OP
-				try:
-					if posts['resto'] == 0:
-						try: 
-							self.originalpost.update({'no': no})
-						except: 
-							self.originalpost.update({'no': 1234567890})
-							pass
-						
-						try: self.originalpost.update({'semantic_url': posts['semantic_url'].encode('utf-8')})
-						except: pass 
-						
-						try:
-							com = self.clean_html(posts['com']) 
-							self.originalpost.update({'com': com.encode('utf-8')})
-						except: pass
-						
-						try:
-							sub = self.clean_html(posts['sub'])
-							self.originalpost.update({'sub': sub.encode('utf-8')})
-						except:
-							pass
-						
-				
-				except Exception as e:
-					debug.msg("DictOutput: Error while processing OP: " + str(e))
-					raise
+# 				# Post is OP
+# 				try:
+# 					if posts['resto'] == 0:
+# 						try: 
+# 							self.originalpost.update({'no': no})
+# 						except: 
+# 							self.originalpost.update({'no': 1234567890})
+# 							pass
+# 						
+# 						try: self.originalpost.update({'semantic_url': posts['semantic_url'].encode('utf-8')})
+# 						except: pass 
+# 						
+# 						try:
+# 							com = self.clean_html(posts['com']) 
+# 							self.originalpost.update({'com': com.encode('utf-8')})
+# 						except: pass
+# 						
+# 						try:
+# 							sub = self.clean_html(posts['sub'])
+# 							self.originalpost.update({'sub': sub.encode('utf-8')})
+# 						except:
+# 							pass
+# 						
+# 				
+# 				except Exception as e:
+# 					debug.msg("DictOutput: Error while processing OP: " + str(e))
+# 					raise
 					
 				if no in self.tdict:
 					continue
@@ -144,6 +169,11 @@ class DictOutput(object):
 				filename = ""
 				
 			try:
+				fsize = posts['fsize']
+			except:
+				fsize = 0
+				
+			try:
 				tim = posts['tim']
 			except:
 				tim = ""
@@ -178,7 +208,8 @@ class DictOutput(object):
 				# TODO maybe just use the structure from 4chan's json. Maybe.
 				self.tdict[no] = {'country':country, 'name':name, 'time':time,
 						'com':com, 'trip':trip, 'color':color, 'filename':filename,
-						'tim':tim, 'ext':ext, 'marked':marked, 'refposts':refposts }
+						'tim':tim, 'ext':ext, 'marked':marked, 'refposts':refposts,
+						'fsize':fsize }
 				
 				def filter_scan(filterdict):
 					filter_matched = False
@@ -334,7 +365,7 @@ class DictOutput(object):
 			try: 
 				self.title = self.originalpost['com']
 			except Exception as e:
-				self.title = "yottu v0.3 - https://github.com/yottu/yottu - <BoardPad>"
+				self.title = u"yottu v0.3 - https://github.com/yottu/yottu - <BoardPad>"
 				debug.msg("Couldn't set title" + str(e) + "\n")
 				pass
 		

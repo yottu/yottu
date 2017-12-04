@@ -139,7 +139,6 @@ class BoardPad(Pad):
 		self.threadFetcher.start()
 		
 		self.postReply = PostReply(self.board, self.threadno)
-		self.postReply.dictOutput = self.threadFetcher.dictOutput # Needed for marking own comments
 		self.postReply.bp = self
 		
 	def post_prepare(self, comment="", filename=None, ranger=False, subject=""):
