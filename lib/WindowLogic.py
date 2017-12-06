@@ -39,6 +39,8 @@ class WindowLogic(object):
 
 	def set_nickname(self, value):
 		self.__nickname = value
+		if self.__nickname:
+			self.__nickname = value
 		for window in self.windowList:
 			window.set_nickname(self.get_nickname())
 
@@ -76,7 +78,7 @@ class WindowLogic(object):
 			self.append_pad(boardpad)
 			self.raise_window(len(self.windowList)-1)
 		except Exception, err:
-			self.dlog.excpt(err)
+			self.dlog.excpt(err, msg=">>>in WindowLogic.join_thread()")
 			
 	def on_resize(self):
 		activeWindow = self.get_active_window()
@@ -165,9 +167,12 @@ class WindowLogic(object):
 		self._stop.set()
 		
 	def raise_window(self, num):
-		if len(self.windowList) > num >= 0:
-			self.set_active_window(num)
-			self.windowList[self.get_active_window()].draw()
+		try:
+			if len(self.windowList) > num >= 0:
+				self.set_active_window(num)
+				self.windowList[self.get_active_window()].draw()
+		except Exception as e:
+			self.dlog.excpt(e, msg=">>>in WindowLogic.raise_window()")
 	
 	# FIXME: these should probably called with wl.active_window.<MOVE>	
 	def moveup(self, lines=1):

@@ -16,7 +16,7 @@ class Statusbar(Bar):
 		self.unread_windows = [] # List of string and curses attribute tuples
 		
 		self.board = board
-		self.threadno = threadno
+		self.threadno = str(threadno)
 		
 		self.nickname = nickname
 		
@@ -50,7 +50,7 @@ class Statusbar(Bar):
 		
 
 	def set_threadno(self, value):
-		self.__threadno = value
+		self.__threadno = str(value)
 
 
 	def on_resize(self):
@@ -63,7 +63,10 @@ class Statusbar(Bar):
 
 	def set_nickname(self, value):
 		self.__nickname = value
-		self.sb_name = "[" + str(self.nickname) + "]"
+		try:
+			self.sb_name = u''.join("[" + self.nickname + "]")
+		except:
+			self.sb_name = u''.join("[Anon]")
 	
 	def calc_blank(self, len_counter):
 		# FIXME dont use hardcoded ints
@@ -76,26 +79,27 @@ class Statusbar(Bar):
 				
 			
 	def draw(self, update_n="", wait_n=""):
-		self.sb_clock = "[" + time.strftime('%H:%M') + "]"
-		if self.board:
-			self.sb_win = "[" + str(self.sb_windowno) + ":4chan/"+ self.board + "/" + self.threadno + "]"
-		else:
-			self.sb_win = "[" + str(self.sb_windowno) + ":4chan]"
-			
-		self.sb_clock = "[" + time.strftime('%H:%M') + "]"
-		if self.nickname:
-			self.sb_name = "[" + str(self.nickname) + "]"
-		else:
-			self.sb_name = "[Anon]"
-		
-		# calculate digits of the countdown timers
-		counter = str(update_n)
-		if wait_n:
-			counter = str(wait_n) + "|" + counter
-		self.calc_blank(len(counter))
-		
-		
+				
 		try:
+			self.sb_clock = "[" + time.strftime('%H:%M') + "]"
+			if self.board:
+				self.sb_win = "[" + str(self.sb_windowno) + ":4chan/"+ self.board + "/" + str(self.threadno) + "]"
+			else:
+				self.sb_win = "[" + str(self.sb_windowno) + ":4chan]"
+				
+			self.sb_clock = "[" + time.strftime('%H:%M') + "]"
+# 			if self.nickname:
+# 				self.sb_name = "[" + str(self.nickname) + "]"
+# 			else:
+# 				self.sb_name = "[Anon]"
+			
+			# calculate digits of the countdown timers
+			counter = str(update_n)
+			if wait_n:
+				counter = str(wait_n) + "|" + counter
+			self.calc_blank(len(counter))
+		
+
 			# Default Bar color
 			curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_GREEN)  # @UndefinedVariable
 			# Highlights in Bar color

@@ -148,6 +148,8 @@ class PostReply(object):
         
         if nickname == None:
             nickname = ""
+        else:
+            nickname = u''.join(nickname)
         
         # Read file / get mime type
         try:

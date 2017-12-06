@@ -61,19 +61,29 @@ class Pad(object):
 
 
 	def set_nickname(self, value):
-		self.__nickname = value
-		self.sb.set_nickname(self.nickname)
+		
+		try:
+			
+			self.__nickname = value
+			self.sb.set_nickname(self.nickname)
+			
+		except Exception as e:
+			self.dlog.excpt(e, msg=">>>in Pad.set_nickname()", cn=self.__class__.__name__)
 
 	def autofocus(self):
 		''' Raise window on configuration directive '''
-		
-		cfg = Config(debug=False)
-		window_index = self.wl.get_window(self)
-		active_window_index = self.wl.get_active_window()
-		if cfg.get('window.board.autofocus') and window_index is not active_window_index:
-			self.wl.set_active_window(window_index)
-			self.autoScroll = True
-			self.auto_scroll()
+		try:
+			
+			cfg = Config(debug=False)
+			window_index = self.wl.get_window(self)
+			active_window_index = self.wl.get_active_window()
+			if cfg.get('window.board.autofocus') and window_index is not active_window_index:
+				self.wl.set_active_window(window_index)
+				self.autoScroll = True
+				self.auto_scroll()
+				
+		except Exception as e:
+			self.dlog.excpt(e, msg=">>>in Pad.autofocus()", cn=self.__class__.__name__)
 
 	# Updater polls this method every n seconds
 	def on_update(self):
@@ -85,39 +95,49 @@ class Pad(object):
 	def active(self):
 		self._active = True
 		
-		if self.autoScroll and self.__position is self.size:
-			self.clear_unread_window_elements()
-
-		self.sb.draw()
-		self.tb.draw()
-		self.draw()
+		try:
+			if self.autoScroll and self.__position is self.size:
+				self.clear_unread_window_elements()
+	
+			self.sb.draw()
+			self.tb.draw()
+			self.draw()
+		except Exception as e:
+			self.dlog.excpt(e, msg=">>>in Pad.active()", cn=self.__class__.__name__)	
 	
 		
 	def clear_unread_window_elements(self):
 		''' Reset window's unread properties and remove unread status from status bar '''
-		
-		self.wl.set_property(self, 'sb_unread', False)
-		self.wl.windowListProperties[self]['sb_lines'] = 0
-		self.wl.windowListProperties[self]['sb_mentioned'] = False
-		self.generate_unread_window_element()
+		try:
+			
+			self.wl.set_property(self, 'sb_unread', False)
+			self.wl.windowListProperties[self]['sb_lines'] = 0
+			self.wl.windowListProperties[self]['sb_mentioned'] = False
+			self.generate_unread_window_element()
+			
+		except Exception as e:
+			self.dlog.excpt(e, msg=">>>in Pad.clear_unread_window_elements()", cn=self.__class__.__name__)
 		
 	def inactive(self):
 		self._active = False
 		
 	def on_resize(self):
-		screensize_y, screensize_x = self.stdscr.getmaxyx()
-		curses.resize_term(screensize_y, screensize_x)  # @UndefinedVariable
-		
-		height = screensize_y-self.reservedscreen; width = screensize_x
-		self.pheight = height
-		self.pwidth = width
-		
-		self.mypad.resize(self.pheight+Pad.padbuffersize, self.pwidth)
-		
-		(self.pposy, self.pposx) = self.mypad.getyx()
-		(self.pmaxy, self.pmaxx) = self.mypad.getmaxyx()
-		self.actualpmaxy = self.pmaxy-Pad.padbuffersize
-		self.draw()
+		try:
+			screensize_y, screensize_x = self.stdscr.getmaxyx()
+			curses.resize_term(screensize_y, screensize_x)  # @UndefinedVariable
+			
+			height = screensize_y-self.reservedscreen; width = screensize_x
+			self.pheight = height
+			self.pwidth = width
+			
+			self.mypad.resize(self.pheight+Pad.padbuffersize, self.pwidth)
+			
+			(self.pposy, self.pposx) = self.mypad.getyx()
+			(self.pmaxy, self.pmaxx) = self.mypad.getmaxyx()
+			self.actualpmaxy = self.pmaxy-Pad.padbuffersize
+			self.draw()
+		except Exception as e:
+			self.dlog.excpt(e, msg=">>>in Pad.on_resize()", cn=self.__class__.__name__)
 		
 	
 	def addstr(self, string, options=curses.A_NORMAL, indent=0, mentioned=False):  # @UndefinedVariable
@@ -171,7 +191,7 @@ class Pad(object):
 			if mentioned:
 				self.wl.windowListProperties[self]['sb_mentioned'] = True
 		except Exception as err:
-			self.dlog.excpt(err, msg="Pad.addstr() - indent != 0", cn=self.__class__.__name__)
+			self.dlog.excpt(err, msg=">>>in Pad.addstr() - indent != 0", cn=self.__class__.__name__)
 			if str(err) == "addstr() returned ERR":
 				self.dlog.msg("Pad full. Reinitializing..")
 				self.mypad = curses.newpad(self.pheight+Pad.padbuffersize, self.pwidth)  # @UndefinedVariable
@@ -202,8 +222,8 @@ class Pad(object):
 				if unicodedata.east_asian_width(letter) is 'W':
 					lineLength +=1
 					
-		except Exception as err:
-			self.dlog.msg("Pad.calcline(): " + str(err))	
+		except Exception as e:
+			self.dlog.excpt(e, msg=">>>in Pad.calcline()", cn=self.__class__.__name__)			
 			
 		finally:	
 			return lineLength
@@ -267,12 +287,17 @@ class Pad(object):
 # 				self.generate_unread_window_element()
 		
 	def auto_scroll(self):
-		if self.autoScroll is True:
-			self.set_position(self.size)
+		try:
+			
+			if self.autoScroll is True:
+				self.set_position(self.size)
 		
-		# TODO indicate there are new lines in the status bar
-		else:
-			pass
+			# TODO indicate there are new lines in the status bar
+			else:
+				pass
+			
+		except Exception as e:
+			self.dlog.excpt(e, msg=">>>in Pad.auto_scroll()", cn=self.__class__.__name__)
 			
 	# FIXME merge moveup and down into one def
 	def moveup(self, lines=1):
@@ -317,7 +342,7 @@ class Pad(object):
 
 			self.mypad.refresh(newPos, 0, 1, 0, self.actualpmaxy, self.pmaxx)
 		except Exception as e:
-			self.dlog.excpt(e)
+			self.dlog.excpt(e, msg=">>>in Pad.move()", cn=self.__class__.__name__)
 			raise
 		
 			
@@ -346,8 +371,8 @@ class Pad(object):
 							return None 
 						
 				
-		except Exception as err:
-			self.dlog.msg("Pad.get_postno_of_marked_line: " + str(err))
+		except Exception as e:
+			self.dlog.excpt(e, msg=">>>in Pad.get_postno_of_marked_line()", cn=self.__class__.__name__)
 			return None
 		finally:
 			self.restore_postion(y, x)
@@ -369,9 +394,9 @@ class Pad(object):
 				
 				self.mypad.chgat(pos_y, x, 1,  attrs | mode)  # @UndefinedVariable
 			#	self.dlog.msg("Size of char: " + char +" | " + str(len(char)) + " | inch(): " + str(charattr) + " | cpn: " + str(color_pair_number))
-
-		except Exception as err:
-			self.dlog.msg("Pad.reverseline(): " + str(err))
+			
+		except Exception as e:
+			self.dlog.excpt(e, msg=">>>in Pad.reverseline()", cn=self.__class__.__name__)
 			raise
 	
 	# FIXME: resizing messes up the position
@@ -407,8 +432,8 @@ class Pad(object):
 			
 			self.reverseline(self.marked_line)
 			
-		except Exception as err:
-			self.dlog.msg("Pad.markline(): " + str(err))
+		except Exception as e:
+			self.dlog.excpt(e, msg=">>>in Pad.draw()", cn=self.__class__.__name__)
 			
 		finally:
 			self.restore_postion(y, x)
@@ -418,24 +443,28 @@ class Pad(object):
 		try:
 			if self.marked_line is not None:
 				self.reverseline(self.marked_line, curses.A_NORMAL)  # @UndefinedVariable
-		except Exception as err:
-			self.dlog.msg("Pad.unmarkline(): " + str(err))
-			pass
-		
+		except Exception as e:
+			self.dlog.excpt(e, msg=">>>in Pad.unmarkline()", cn=self.__class__.__name__)
 		
 	def save_position(self):
 		y, x = self.mypad.getyx()
 		return y, x
 	
 	def restore_postion(self, y, x):
-		self.mypad.move(y, x)
+		try:
+			self.mypad.move(y, x)
+		except Exception as e:
+			self.dlog.excpt(e, msg=">>>in Pad.restore_position()", cn=self.__class__.__name__)
 
 	def show_image(self):
 		pass
 			
 	def draw(self):
-		self.set_position(self.get_position())
-		self.stdscr.refresh()
+		try:
+			self.set_position(self.get_position())
+			self.stdscr.refresh()
+		except Exception as e:
+			self.dlog.excpt(e, msg=">>>in Pad.draw()", cn=self.__class__.__name__)
 		
 	def download_images(self):
 		pass

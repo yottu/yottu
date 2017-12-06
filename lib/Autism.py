@@ -79,6 +79,7 @@ class Autism:
 				# Get content length for percentage progress
 				try:
 					content_length = int(request.headers['Content-length'])
+					self.dlog.msg("ContentFetcher: Headers: " + str(request.headers), 5)
 				except KeyError or ValueError:
 					content_length = False
 					
@@ -108,7 +109,7 @@ class Autism:
 						
 					#self.dlog.msg("ContentFetcher: Data transmission from >>>/" + self.board + "/" + self.threadno + "/ (" + str((len(content)+len(data))/1024) + "K)", 3)
 				
-				if source == "board":
+				if source is not "image":
 					#self.lasttime = datastream.headers.get('Last-Modified')
 					self.lasttime = request.headers.get('Last-Modified')
 
@@ -203,8 +204,11 @@ class Autism:
 				self.dlog.msg("Reading " + source + " from: " + target_path + target_filename)	
 				with open(target_path + target_filename, "r") as f:
 						self.jsoncontent = json.loads(f.read())
-						
-				self.lasttime = self.jsoncontent['posts'][0]['last-modified']
+				
+				if source is "board":		
+					self.lasttime = self.jsoncontent['posts'][0]['last-modified']
+				elif source is "catalog":
+					self.lasttime = self.jsoncontent[0]['last-modified']
 				self.dlog.msg("Last-Modified: " + self.lasttime)
 				
 				self.cached_file_exists = True
@@ -229,9 +233,8 @@ class Autism:
 		if source is 'board':
 			self.jsoncontent['posts'][0].update({u'last-modified':u''.join(self.lasttime)})
 			
-		# catalog does not provide a last modified date, could implement own date check	
-		#elif source is 'catalog':
-		#	self.jsoncontent[0].update({u'last-modified':u''.join(self.lasttime)})
+		elif source is 'catalog':
+			self.jsoncontent[0].update({u'last-modified':u''.join(self.lasttime)})
 
 		
 		#self.jsoncontent['yottu'] = ['']

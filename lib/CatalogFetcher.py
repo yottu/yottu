@@ -27,6 +27,7 @@ class CatalogFetcher(threading.Thread):
 		
 	def active(self):
 		self._active = True
+		self.tb.set_title("/" + self.board + "/ -- catalog")
 		self.tb.draw()
 		
 	def inactive(self):
@@ -60,14 +61,24 @@ class CatalogFetcher(threading.Thread):
 	
 			try:
 				getCatalog.setstdscr(self.stdscr)
-				getCatalog.get("catalog")
+				catalog_state = getCatalog.get("catalog")
 				catalog = getattr(getCatalog, "jsoncontent")
 				result_postno = catOutput.refresh(catalog)
+				
+				if self._active:
+					self.tb.set_title("/" + self.board + "/ -- catalog")
+				
+				if catalog_state is "cached":
+					getCatalog.get("catalog")
+					catalog = getattr(getCatalog, "jsoncontent")
+					result_postno = catOutput.refresh(catalog)
+					
+					
 				if len(result_postno) == 1:
 					self.cp.wl.destroy_active_window()
 					self.cp.wl.join_thread(self.board, str(result_postno.pop()))
 					break
-				self.tb.set_title("/" + self.board + "/ -- catalog")
+				
 			except Exception as e:
 				self.sb.setStatus(str(e))
 				dlog.excpt(e)

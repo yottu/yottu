@@ -452,8 +452,8 @@ class CommandInterpreter(threading.Thread):
 			if postno and isinstance(activeWindow, BoardPad):
 				# Don't display help when command line is in usage
 				if not self.cmode:
-					image_filename = activeWindow.tdict[int(self.postno_marked)]['filename']
-					image_filename +=activeWindow.tdict[int(self.postno_marked)]['ext']
+					image_filename = activeWindow.tdict[(int(self.postno_marked))]['filename']
+					image_filename += activeWindow.tdict[int(self.postno_marked)]['ext']
 					image_filesize = activeWindow.tdict[int(self.postno_marked)]['fsize']
 					post_is_me = activeWindow.tdict[int(self.postno_marked)]['marked']
 					if post_is_me:
@@ -473,7 +473,7 @@ class CommandInterpreter(threading.Thread):
 					# align right	
 					help_text = (self.screensize_x-5-len(help_text))*" " + help_text
 					
-					self.stdscr.addstr(self.screensize_y-1, 4, help_text[:self.screensize_x-5], curses.A_DIM )  # @UndefinedVariable
+					self.stdscr.addstr(self.screensize_y-1, 4, help_text[:self.screensize_x-5].encode('utf-8'), curses.A_DIM )  # @UndefinedVariable
 
 				self.wl.get_active_window_ref().show_image_thumb(self.postno_marked)
 			elif postno and isinstance(activeWindow, CatalogPad):
@@ -673,11 +673,14 @@ class CommandInterpreter(threading.Thread):
 				
 				board = False
 				
-				# Directly join thread if integer was given 
-				if isinstance(joinThread, int):
-					self.wl.join_thread(self.context, joinThread)
+				# Directly join thread if integer was given
 				
-				else:
+				try:
+					self.wl.compadout("Joining " + str(int(joinThread)))
+					self.wl.join_thread(self.context, int(joinThread))
+				
+				# Open catalog and search
+				except:
 					joinThread = joinThread.split("/")
 					search = joinThread.pop()
 					

@@ -105,7 +105,8 @@ class CatalogOutput(object):
 							self.cp.addstr(u''.join((word + " ")).encode('utf8'))
 					except:
 						self.cp.addstr("[File only]")
-				except:
+				except Exception as e:
+					self.dlog.excpt(e, ">>>in CatalogOutput.refresh()", cn=self.__class__.__name__)
 					raise
 
 				self.cp.addstr("\n\n")

@@ -15,7 +15,6 @@ from DebugLog import DebugLog
 from bs4 import BeautifulSoup
 
 import warnings
-import unicodedata
 import time
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
@@ -28,6 +27,8 @@ class DictOutput(object):
 		self.nickname = self.bp.get_nickname()
 		self.comment_tbm = None
 		self.comment_tbm_timeout = 0
+		
+		self.dlog = DebugLog(self)
 		
 		self.subfile = None
 		self.subfile_start = None
@@ -48,7 +49,7 @@ class DictOutput(object):
 	def mark(self, comment):
 		''' look for comment to be marked as user post in the next n refreshes '''
 		self.comment_tbm_timeout = 3 # is decreased every refresh
-		self.comment_tbm = comment
+		self.comment_tbm = comment # FIXME does not work with utf-8
 		self.comment_tbm = re.sub('>>(\d+)', '\g<1>', self.comment_tbm)
 		self.comment_tbm = re.sub('\n', ' ', self.comment_tbm)
 		
@@ -57,75 +58,54 @@ class DictOutput(object):
 	def refresh(self, jsonobj):
 		self.thread = jsonobj
 		
-		try:
-			debug = DebugLog("debug.log")
-		except:
-			raise
 		
 		#self.tdict['OP'] = {'no': 213, 'com': 'unset', 'sub': 'unset'.encode('utf-8'), 'semantic-url': 'unset'.encode('utf-8')}
 		
-		# Post is OP # FIXME idk why I'm making this so complicated
+		# Get some information about the thread (post count, reply count, etc) from the first post 
 		try:
-				try: 
-					self.originalpost.update({'no': self.thread['posts'][0]['no']})
-				except: 
-					self.originalpost.update({'no': 1234567890})
-					pass
-				
-				try: self.originalpost.update({'semantic_url': self.thread['posts'][0]['semantic_url'].encode('utf-8')})
-				except: pass 
-				
-				try:
-					com = self.clean_html(self.thread['posts'][0]['com']) 
-					self.originalpost.update({'com': com.encode('utf-8')})
-				except: pass
-				
-				try:
-					sub = self.clean_html(self.thread['posts'][0]['sub'])
-					self.originalpost.update({'sub': sub.encode('utf-8')})
-				except:
-					pass
-				
+			self.originalpost.update({'no': self.thread['posts'][0]['no']})
 		
+			try: 
+				self.originalpost.update({'replies': self.thread['posts'][0]['replies']})
+				self.originalpost.update({'images': self.thread['posts'][0]['images']})
+				self.originalpost.update({'unique_ips': self.thread['posts'][0]['unique_ips']})
+				thread_stats = " " + str(self.originalpost['replies']) + "R " \
+					+ str(self.originalpost['images']) + "I " \
+					+ str(self.originalpost['unique_ips']) + "P"
+				self.bp.tb.stats = thread_stats
+			except Exception as e: 
+				self.dlog.warn(e, logLevel=3, msg=">>>in DictOutput.refresh()")
+			
+			try:
+				self.originalpost.update({'semantic_url': self.thread['posts'][0]['semantic_url'].encode('utf-8')})
+			except:
+				pass 
+			
+			try:
+				com = self.clean_html(self.thread['posts'][0]['com']) 
+				self.originalpost.update({'com': com.encode('utf-8')})
+				self.title = self.originalpost['com']
+			except: pass
+			
+			try:
+				sub = self.clean_html(self.thread['posts'][0]['sub'])
+				self.originalpost.update({'sub': sub.encode('utf-8')})
+				self.title = self.originalpost['sub']
+			except:
+				pass
+			
 		except Exception as e:
-			debug.msg("DictOutput: Error while processing OP: " + str(e))
+			self.dlog.warn(e, msg=">>>in CatalogOutput.refresh()", cn=self.__class__.__name__)
 			raise
 		
 		for posts in self.thread['posts']:
+			
+			# skip post if base data can't be processed
 			try:
 				
-				# skip if record found in dictionary
 				no = posts['no']
 				
-				
-# 				# Post is OP
-# 				try:
-# 					if posts['resto'] == 0:
-# 						try: 
-# 							self.originalpost.update({'no': no})
-# 						except: 
-# 							self.originalpost.update({'no': 1234567890})
-# 							pass
-# 						
-# 						try: self.originalpost.update({'semantic_url': posts['semantic_url'].encode('utf-8')})
-# 						except: pass 
-# 						
-# 						try:
-# 							com = self.clean_html(posts['com']) 
-# 							self.originalpost.update({'com': com.encode('utf-8')})
-# 						except: pass
-# 						
-# 						try:
-# 							sub = self.clean_html(posts['sub'])
-# 							self.originalpost.update({'sub': sub.encode('utf-8')})
-# 						except:
-# 							pass
-# 						
-# 				
-# 				except Exception as e:
-# 					debug.msg("DictOutput: Error while processing OP: " + str(e))
-# 					raise
-					
+				# skip post if it was already processed
 				if no in self.tdict:
 					continue
 				
@@ -133,16 +113,15 @@ class DictOutput(object):
 				time = datetime.datetime.fromtimestamp(posts['time']).strftime('%H:%M')
 			except:
 				continue
-					
+				
+			# assign color to post number
 			curses.use_default_colors()  # @UndefinedVariable
 			for i in range(0, curses.COLORS):  # @UndefinedVariable
 				curses.init_pair(i + 1, i, -1)  # @UndefinedVariable
-						
-			# assign color to post number
 			color = randint(3, 255)
 	
 	
-			refposts = ""
+			refposts = "" # posts referenced in a reply
 			try: country = posts['country']
 			except: country = ""
 			try:
@@ -167,7 +146,7 @@ class DictOutput(object):
 				filename = self.clean_html(posts['filename'])
 			except:
 				filename = ""
-				
+			
 			try:
 				fsize = posts['fsize']
 			except:
@@ -189,7 +168,7 @@ class DictOutput(object):
 				marked = False
 				if self.comment_tbm_timeout > 0:
 					
-					debug.msg("com: " + str(com) + " tbm: " + str(self.comment_tbm))
+					self.dlog.msg("com: " + str(com) + " tbm: " + str(self.comment_tbm))
 					# TODO regex match with n percentage accuracy should work better
 					if com == self.comment_tbm:
 						marked = True
@@ -216,18 +195,24 @@ class DictOutput(object):
 					for rule in json.loads(filterdict):
 
 						for section in json.loads(rule['filter']):
+							
+							
 							try: test = json.loads(rule['filter'])
 							except: pass
-							debug.msg("--" + str(self.tdict[no][section]) + " in " + str(test[section]))
-							if self.tdict[no][section] in test[section]:
-								debug.msg("--Matched")
+							
+							if self.tdict[no][section] in test[section] and self.tdict[no][section]:
+								self.dlog.msg("--Matched: " + str(self.tdict[no][section]) + " in " + str(test[section]), 4)
 								filter_matched = True
-							if self.tdict[no][section] not in test[section]:
-								debug.msg("--Not matched")
+							elif self.tdict[no][section] not in test[section]:
+								self.dlog.msg("--Not matched: " + str(self.tdict[no][section]) + " in " + str(test[section]), 4)
+								filter_matched = False
+								break
+							else:
+								self.dlog.msg("--Not matched (section does not exist): " + str(section), 4)
 								filter_matched = False
 								break
 							
-					debug.msg("--Matched: " + str(filter_matched))
+					self.dlog.msg("--Matched (" + str(rule) + "): " + str(filter_matched), 4)
 					return filter_matched
 				
 				# Scan for matched filters 
@@ -255,10 +240,10 @@ class DictOutput(object):
 # 					filter_matched = True
 							
 				if filter_matched:
-					debug.msg("--FILTER TEST: Skipping comment: " + str(no))
+					self.dlog.msg("--FILTER TEST: Skipping comment: " + str(no))
 					continue
 			except Exception as err:
-				debug.warn(err, msg=">>>in DictOutput.refresh() (-> filter)")
+				self.dlog.warn(err, msg=">>>in DictOutput.refresh() (-> filter)")
 				
 			try:			
 				#if filter_matched:	
@@ -335,9 +320,9 @@ class DictOutput(object):
 									self.bp.addstr("(You) ", curses.A_BOLD | curses.color_pair(221), indent, mentioned=True)  # @UndefinedVariable
 									try:
 										Notifier.send(name, com)
-									except:
-										raise
-										pass
+									except Exception as e:
+											self.dlog.excpt(e, msg=">>>in DictOutput.refresh()", cn=self.__class__.__name__)
+											raise
 									
 								# highlight OP reference
 								if re.match(word, str(self.originalpost['no'])):
@@ -348,7 +333,7 @@ class DictOutput(object):
 										pass
 
 							except Exception as e:
-								#debug.msg("DictOutput: " + str(e))
+								#self.dlog.msg("DictOutput: " + str(e))
 								self.bp.addstr(word + " ", curses.A_DIM, indent)  # @UndefinedVariable
 								pass
 								
@@ -359,16 +344,6 @@ class DictOutput(object):
 	
 			self.bp.addstr("\n", curses.A_NORMAL, indent)  # @UndefinedVariable
 			
-		try:
-			self.title = self.originalpost['sub']
-		except:
-			try: 
-				self.title = self.originalpost['com']
-			except Exception as e:
-				self.title = u"yottu v0.3 - https://github.com/yottu/yottu - <BoardPad>"
-				debug.msg("Couldn't set title" + str(e) + "\n")
-				pass
-		
 		
 		self.subfile_append(com)
 			
@@ -448,7 +423,8 @@ class DictOutput(object):
 						fh.write("\n") 
 			else:
 				return False
-		except Exception:
+		except Exception as e:
+			self.dlog.excpt(e, msg=">>>in DictOutput.create_sub()", cn=self.__class__.__name__)
 			raise
 		
 		return True

@@ -80,7 +80,7 @@ class ThreadFetcher(threading.Thread):
 			self.dictOutput = DictOutput(self.bp)
 			self.bp.postReply.dictOutput = self.dictOutput # Needed for marking own comments
 		except Exception as e:
-			dlog.excpt(e)
+			dlog.excpt(e, msg=">>>in ThreadFetcher.run()", cn=self.__class__.__name__)
 			self.stdscr.addstr(0, 0, str(e), curses.A_REVERSE)  # @UndefinedVariable
 			self.stdscr.refresh()
 				
@@ -109,6 +109,10 @@ class ThreadFetcher(threading.Thread):
 				self.bp.set_tdict(self.dictOutput.get_tdict())
 				
 				self.bp.autofocus()
+				
+				# Set title if window is active
+				if self._active:
+					self.tb.set_title(self.dictOutput.getTitle())
 					
 				# Immediately refresh cached threads
 				if thread_state is "cached":
