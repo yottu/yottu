@@ -1,5 +1,7 @@
 # yottu
 
+#### Important: I'm using this project to learn python, for security reasons I do not recommend running it without privilege separation
+##### docker image: https://gist.github.com/yottu/e67344e915964cc384094e5df32d6bca
 
 ![alt tag](https://raw.github.com/yottu/yottu/master/screenshot.png)
 _imageboard appliances for professional shitposting in an enterprise environment_
