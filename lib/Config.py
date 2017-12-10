@@ -43,7 +43,9 @@ class Config(object):
 		''' returns dict with default settings '''
 		return {
 			'autojoin_threads' : '',
-			'board.default': 'g', #    
+			'board.default': 'g', #  
+			'catalog.cache.maxage': '1800', # Cached catalog's maximum age  
+			'catalog.update.time': '180',
 			'config.autoload': 'False', # Load settings after /save
 			'config.autosave': 'False', # Save settings after /set
 			'proxy.socks.address': '127.0.0.1', # 

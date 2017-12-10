@@ -8,22 +8,36 @@ from Autism import Autism
 import curses
 import time
 import threading
+import Config
 from DebugLog import DebugLog
 
 class CatalogFetcher(threading.Thread):
-	def __init__(self, stdscr, board, cp, search=""):
+	def __init__(self, stdscr, board, cp, search="", cache_only=False):
 		self.stdscr = stdscr
 		self.board = board
 		self.cp = cp # CatalogPad
 		self.search = search
+		self.cache_only = cache_only # True: Do not re-fetch immediately if cached catalog is available
 		self.sb = self.cp.sb
 		self.tb = self.cp.tb
+		
+		cfg = Config.Config(debug=False)
+		try:
+			self.catalog_update_time = int(cfg.get('catalog.update.time'))
+		except:
+			self.catalog_update_time = 180
+		
 		Thread.__init__(self)
 		self._stop = threading.Event()
+		self._update = threading.Event()
 		self._active = False # CatalogPad the CatalogFetcher runs in is active
 		
 	def stop(self):
 		self._stop.set()
+		
+	def update(self, notail=False):
+		''' Update catalog immediately '''
+		self._update.set()
 		
 	def active(self):
 		self._active = True
@@ -69,9 +83,16 @@ class CatalogFetcher(threading.Thread):
 					self.tb.set_title("/" + self.board + "/ -- catalog")
 				
 				if catalog_state is "cached":
-					getCatalog.get("catalog")
-					catalog = getattr(getCatalog, "jsoncontent")
-					result_postno = catOutput.refresh(catalog)
+					self.sb.setStatus("CACHED")
+					
+					# Don't refresh catalog if cache only is requested 
+					if self.cache_only is False:
+						getCatalog.get("catalog")
+						catalog = getattr(getCatalog, "jsoncontent")
+						result_postno = catOutput.refresh(catalog)
+				
+				else:
+					self.sb.setStatus("")
 					
 					
 				if len(result_postno) == 1:
@@ -87,8 +108,12 @@ class CatalogFetcher(threading.Thread):
 			if self._active:		
 				self.tb.draw()
 				
-			for update_n in range (90, -1, -1):
+			for update_n in range (self.catalog_update_time, -1, -1):
 				if self._stop.is_set():
+					break
+				
+				if self._update.is_set():
+					self._update.clear()
 					break
 				
 				try:

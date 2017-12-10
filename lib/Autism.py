@@ -6,6 +6,7 @@ import DebugLog
 from Config import Config
 import os
 from requests.exceptions import SSLError, HTTPError
+import datetime
 
 class Autism:
 	def __init__(self, board, threadno="catalog", domain="a.4cdn.org"):
@@ -15,9 +16,13 @@ class Autism:
 		self.jsoncontent = ""
 		self.lasttime = ""
 		self.tail_size = 0
+		self.is_tail = False
+		self.notail = False # True: Force downloading the complete json file
 		self.cached_file_exists = False
 		self.dlog = DebugLog.DebugLog()
 		self.stdscr = None
+		
+
 
 	@property
 	def jsoncontent(self):
@@ -34,6 +39,8 @@ class Autism:
 	# source can be "board" or "catalog" or "image"
 	def _query(self, source, image_filename=None):
 		''' Returns datastream of a url generated from its context '''
+		
+
 					
 		chunk_size = 128
 		for i in range(1, 10):
@@ -46,8 +53,9 @@ class Autism:
 				if source == "board":
 					path = "/" + self.board + "/thread/" + self.threadno
 					
-					# only fetch last 50 replies on update
-					if self.lasttime and self.tail_size:
+					# only fetch last 50 replies on update and if jsondata contains field tail_size
+					if self.lasttime and self.tail_size and not self.notail:
+						self.is_tail = True
 						path += "-tail"
 						
 					path += ".json"
@@ -62,7 +70,7 @@ class Autism:
 					
 				uri = "https://" + domain + path # TODO user setting for http/https
 				
-				self.dlog.msg("JsonFetcher: In _query for " + uri, 5)
+				self.dlog.msg("ContentFetcher: In _query for " + uri, 4)
 
 				
 				headers = {'Accept-encoding': 'gzip'}
@@ -109,6 +117,14 @@ class Autism:
 						
 					#self.dlog.msg("ContentFetcher: Data transmission from >>>/" + self.board + "/" + self.threadno + "/ (" + str((len(content)+len(data))/1024) + "K)", 3)
 				
+				# Raise redirection status codes mainly to catch 304 Not Modified
+				if 300 <= request.status_code < 400:
+					http_error_msg = u'%s' % (request.status_code)
+					http_error = HTTPError(http_error_msg, response=request)
+					raise(http_error)
+				
+				request.raise_for_status()
+			
 				if source is not "image":
 					#self.lasttime = datastream.headers.get('Last-Modified')
 					self.lasttime = request.headers.get('Last-Modified')
@@ -119,14 +135,6 @@ class Autism:
 # 						content = gzip.GzipFile(fileobj=StringIO(content)).read()
 # 				except:
 # 					pass
-				
-				# Raise redirection status codes mainly to catch 304 Not Modified
-				if 300 <= request.status_code < 400:
-					http_error_msg = u'%s' % (request.status_code)
-					http_error = HTTPError(http_error_msg, response=request)
-					raise(http_error)
-				
-				request.raise_for_status()
 				
 				# blank
 				self.stdscr.addstr(screensize_y-2, screensize_x-3-len(statusText), len(statusText)*" ", curses.color_pair(2))  # @UndefinedVariable
@@ -140,7 +148,8 @@ class Autism:
 				continue
 			except HTTPError:
 				raise
-			except Exception:
+			except Exception as e:
+				self.dlog.excpt(e, msg=">>>in ContentFetcher.get()", cn=self.__class__.__name__)
 				raise
 			break
 		
@@ -187,9 +196,26 @@ class Autism:
 			raise
 
 	# FIXME just return the content; i dont think the source thing is really needed as param
+
+	
+	def seconds_since_lasttime(self):
+		''' Returns the time that has passed since the Last-Modified header stored in self.lasttime '''
+		
+		try:
+			last_modified = datetime.datetime.strptime(self.lasttime, "%a, %d %b %Y %H:%M:%S GMT")
+			age_seconds = abs(last_modified-datetime.datetime.utcnow()).seconds
+		
+			return age_seconds
+		
+		except Exception as e:
+			self.dlog.excpt(e, msg=">>>in ContentFetcher.seconds_since_lasttime()", cn=self.__class__.__name__)
+	
+	
 	def get(self, source="board"):
 		
-		
+		class CatalogAgeExceeded(ValueError):
+			pass
+		# method is run for the first time
 		if not self.jsoncontent:
 			try:
 				cfg = Config(debug=False)
@@ -207,26 +233,39 @@ class Autism:
 				
 				if source is "board":		
 					self.lasttime = self.jsoncontent['posts'][0]['last-modified']
+					
 				elif source is "catalog":
 					self.lasttime = self.jsoncontent[0]['last-modified']
-				self.dlog.msg("Last-Modified: " + self.lasttime)
+
+					catalog_age_seconds = self.seconds_since_lasttime()
+					
+					if catalog_age_seconds > cfg.get('catalog.cache.maxage'):
+
+						raise CatalogAgeExceeded("Catalog maximum age exceeded.")
+				
+				self.dlog.msg("Last-Modified (" + target_filename + "): " + self.lasttime, 3)
 				
 				self.cached_file_exists = True
 				return "cached"
 			
+			except IOError as e:
+				self.dlog.msg("ContentFetcher: Board not cached: " + e.filename + " (" + e.strerror + ")", 3)
+			except CatalogAgeExceeded as e:
+				self.lasttime = ""
+				self.dlog.msg("ContentFetcher: Not using cache file: " + str(e), 3)
 			except Exception as e:
-				self.dlog.warn(e, ">>>in ContentFetcher.get()")
-		else:
-			pass #content = self._query(source)
+				self.dlog.excpt(e, msg=">>>in ContentFetcher.get()", cn=self.__class__.__name__)
 		
+		# update content
 		content = self._query(source)
-
-
 
 		# Add If-Modified-Since value
 		#content['posts'][0].update({u'last-modified':u''.join(self.lasttime)})
 		
-		self.jsoncontent = json.loads(content)
+		try:
+			self.jsoncontent = json.loads(content)
+		except:
+			self.dlog.excpt(e, msg=">>>in ContentFetcher.get()", cn=self.__class__.__name__)
 		
 		#self.dlog.msg(json.dumps(self.jsoncontent['posts'][0]))
 		#content = json.dumps(self.jsoncontent)
@@ -267,7 +306,7 @@ class Autism:
 		
 		
 		# Dump json to file unless it is just the tail
-		if not self.tail_size or not self.cached_file_exists:
+		if not self.is_tail:
 			self.dlog.msg("Saving " + source + " to: " + target_path + target_filename)
 			with open(target_path + target_filename, "w") as f:
 				f.write(json.dumps(self.jsoncontent))

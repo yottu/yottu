@@ -148,7 +148,7 @@ class CommandInterpreter(threading.Thread):
 					#self.dlog.msg(str(kv.items()[0][0]))
 					board = kv.items()[0][0]
 					thread = kv.values()[0]
-					self.dlog.msg("Joining thread: >>>/" + board + "/" + thread)
+					self.dlog.msg("Rejoining thread: >>>/" + board + "/" + thread)
 					self.wl.join_thread(board, thread)
 		except Exception:
 			pass
@@ -676,8 +676,8 @@ class CommandInterpreter(threading.Thread):
 				# Directly join thread if integer was given
 				
 				try:
-					self.wl.compadout("Joining " + str(int(joinThread)))
 					self.wl.join_thread(self.context, int(joinThread))
+					self.wl.compadout("Joining " + str(int(joinThread)))
 				
 				# Open catalog and search
 				except:
@@ -686,8 +686,11 @@ class CommandInterpreter(threading.Thread):
 					
 					if joinThread:
 						board = joinThread.pop()
-					
-					self.wl.catalog(board or self.context, search)
+						
+					try:
+						self.wl.join_thread(board, int(search))
+					except:
+						self.wl.catalog(board or self.context, search)
 				
 			except IndexError:
 				self.wl.compadout("Usage: /join <thread number>")
@@ -696,14 +699,22 @@ class CommandInterpreter(threading.Thread):
 			except:
 				raise
 			
-		elif re.match("catalog", self.command):
+		elif re.match("catalog", self.command) or re.match("search", self.command):
+			mode = cmd_args.pop(0).encode('utf-8')
 			
+			cache_only = False
+			if mode == u"search":
+				cache_only = True
+			
+			
+			
+			self.dlog.msg("--DEBUG: mode is " + mode + " cache_only is " + str(cache_only))
 			try:
 				self.wl.compadout("Creating catalog for " + self.context)
-				search = cmd_args[1]
-				self.wl.catalog(self.context, search)
+				search = cmd_args[0].encode('utf-8')
+				self.wl.catalog(self.context, search, cache_only=cache_only)
 			except IndexError:
-				self.wl.catalog(self.context)
+				self.wl.catalog(self.context, cache_only=cache_only)
 			except:
 				raise
 			

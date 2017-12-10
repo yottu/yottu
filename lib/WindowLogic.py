@@ -89,15 +89,15 @@ class WindowLogic(object):
 	def on_update(self):
 		self.get_active_window_ref().on_update()
 			
-	def catalog(self, board, search=""):
+	def catalog(self, board, search="", cache_only=False):
 		try:
 			catalogpad = CatalogPad(self.stdscr, self)
-			catalogpad.join(board, search)
+			catalogpad.join(board, search=search, cache_only=cache_only)
 			self.append_pad(catalogpad)
 			
 			self.raise_window(len(self.windowList)-1)
 		except Exception, err:
-			self.dlog.excpt(err)
+			self.dlog.excpt(err, msg=">>>in WindowLogic.catalog()", cn=self.__class__.__name__)
 			
 	def destroy_active_window(self):
 		activeWindow = self.get_active_window()

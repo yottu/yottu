@@ -47,8 +47,15 @@ class ThreadFetcher(threading.Thread):
 	def stop(self):
 		self._stop.set()
 		
-	def update(self):
-		self._update.set()
+	def update(self, notail=False):
+		''' Update thread immediately '''
+		
+		# Prevent update loop if post count keeps mismatching
+		if self.contentFetcher.notail is False:
+			self.contentFetcher.notail = notail
+			self._update.set()
+		else:
+			self.contentFetcher.notail = False
 		
 	def active(self):
 		self._active = True

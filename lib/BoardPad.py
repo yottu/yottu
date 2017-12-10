@@ -195,9 +195,9 @@ class BoardPad(Pad):
 					window.time_last_posted_board = time
 			
 			
-	def update_thread(self):
+	def update_thread(self, notail=False):
 		''' update (fetch) thread immediately '''
-		self.threadFetcher.update()
+		self.threadFetcher.update(notail)
 		
 	def show_image_thumb(self, postno):
 		self.show_image(postno, ext=False, thumb=True)

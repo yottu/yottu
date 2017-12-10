@@ -54,7 +54,6 @@ class DictOutput(object):
 		self.comment_tbm = re.sub('\n', ' ', self.comment_tbm)
 		
 
-		
 	def refresh(self, jsonobj):
 		self.thread = jsonobj
 		
@@ -64,7 +63,7 @@ class DictOutput(object):
 		# Get some information about the thread (post count, reply count, etc) from the first post 
 		try:
 			self.originalpost.update({'no': self.thread['posts'][0]['no']})
-		
+			
 			try: 
 				self.originalpost.update({'replies': self.thread['posts'][0]['replies']})
 				self.originalpost.update({'images': self.thread['posts'][0]['images']})
@@ -346,10 +345,15 @@ class DictOutput(object):
 			
 		
 		self.subfile_append(com)
-			
+		
+		# refetch entire thread on post count mismatch
+		try:
+			if len(self.tdict) != int(self.thread['posts'][0]['replies']) + 1:
+				self.bp.update_thread(notail=True)
+		except Exception as e:
+			self.dlog.excpt(e, msg=">>>in DictOutput.refresh() ->refetch", cn=self.__class__.__name__)
 
 		
-	
 	def subfile_append(self, com):
 		''' Output comment to subfile when streaming a video '''
 		if self.append_to_subfile:
