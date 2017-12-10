@@ -61,3 +61,4 @@ coverage.xml
 
 # Translations
 *.mo
+/yottu.db

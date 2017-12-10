@@ -48,6 +48,8 @@ class Config(object):
 			'catalog.update.time': '180',
 			'config.autoload': 'False', # Load settings after /save
 			'config.autosave': 'False', # Save settings after /set
+			'database.sqlite.enable': 'False', # 
+			'database.sqlite.path': './yottu.db', #
 			'proxy.socks.address': '127.0.0.1', # 
 			'proxy.socks.enable': 'False', # 
 			'proxy.socks.port': '9050', #   

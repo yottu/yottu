@@ -10,6 +10,7 @@ from DebugLog import DebugLog
 from TermImage import TermImage
 from Autism import Autism
 from Config import Config
+from Database import Database
 import thread
 import time
 
@@ -25,7 +26,7 @@ class BoardPad(Pad):
 		self.comment = ""
 		self.subject = "" # TODO not implemented
 		
-		
+		self.db = Database()
 		
 		self.filename = None
 		self.ranger = False # If true filename contains path to actual filename
@@ -193,8 +194,17 @@ class BoardPad(Pad):
 				window.time_last_posted = time
 				if window.board == self.board:
 					window.time_last_posted_board = time
-			
-			
+					
+	def update_db(self, postno):
+		try:
+		# FIXME update config with on_change
+			cfg = Config(debug=False)
+			if cfg.get('database.sqlite.enable'):
+				self.db.insert_post(self.board, self.threadno, postno)
+				pass
+		except Exception as e:
+			self.dlog.excpt(e, msg=">>>in BoardPad.update_db()", cn=self.__class__.__name__)
+							
 	def update_thread(self, notail=False):
 		''' update (fetch) thread immediately '''
 		self.threadFetcher.update(notail)

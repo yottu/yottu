@@ -78,7 +78,7 @@ class WindowLogic(object):
 			self.append_pad(boardpad)
 			self.raise_window(len(self.windowList)-1)
 		except Exception, err:
-			self.dlog.excpt(err, msg=">>>in WindowLogic.join_thread()")
+			self.dlog.excpt(err, msg=">>>in WindowLogic.join_thread()", cn=self.__class__.__name__)
 			
 	def on_resize(self):
 		activeWindow = self.get_active_window()

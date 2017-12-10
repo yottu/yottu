@@ -12,6 +12,7 @@ import datetime
 import json
 from Config import Config
 from DebugLog import DebugLog
+from Database import Database
 from bs4 import BeautifulSoup
 
 import warnings
@@ -38,6 +39,8 @@ class DictOutput(object):
 		
 		self.title = u"yottu v0.3 - https://github.com/yottu/yottu - Init: <DictOutput>".encode('utf-8')
 		self.cfg = Config()
+		
+		self.db = Database()
 
 	def get_tdict(self):
 		return self.__tdict
@@ -56,7 +59,6 @@ class DictOutput(object):
 
 	def refresh(self, jsonobj):
 		self.thread = jsonobj
-		
 		
 		#self.tdict['OP'] = {'no': 213, 'com': 'unset', 'sub': 'unset'.encode('utf-8'), 'semantic-url': 'unset'.encode('utf-8')}
 		
@@ -96,6 +98,13 @@ class DictOutput(object):
 		except Exception as e:
 			self.dlog.warn(e, msg=">>>in CatalogOutput.refresh()", cn=self.__class__.__name__)
 			raise
+		
+		db_posts = []
+		try:
+			# Array containing posts from previous sessions
+			db_posts = self.db.get_postno_from_threadno(self.originalpost['no'])
+		except:
+			self.dlog.excpt(e, msg=">>>in refresh() -> db_posts", cn=self.__class__.__name__)
 		
 		for posts in self.thread['posts']:
 			
@@ -173,10 +182,12 @@ class DictOutput(object):
 						marked = True
 						self.comment_tbm = None
 						self.comment_tbm_timeout = 0
+						self.bp.update_db(no)
 						
 					self.bp.threadFetcher.update_n = 3
 					self.comment_tbm_timeout -= 1
-				
+				if no in db_posts:
+					marked = True
 			except:
 				pass
 			
