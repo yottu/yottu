@@ -17,6 +17,7 @@ from bs4 import BeautifulSoup
 
 import warnings
 import time
+from nose import exc
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 class DictOutput(object):
@@ -103,7 +104,7 @@ class DictOutput(object):
 		try:
 			# Array containing posts from previous sessions
 			db_posts = self.db.get_postno_from_threadno(self.originalpost['no'])
-		except:
+		except Exception as e:
 			self.dlog.excpt(e, msg=">>>in refresh() -> db_posts", cn=self.__class__.__name__)
 		
 		for posts in self.thread['posts']:

@@ -45,10 +45,6 @@ class Database(object):
             pass
         conn.commit()
         c.close()
-    
-    def connect(self):
-        conn = sqlite3.connect(self.dbfile)  # @UndefinedVariable
-        return conn.cursor() 
         
     def insert_post(self, board, threadno, postno):
         
@@ -57,17 +53,25 @@ class Database(object):
                 
                 values = [board, threadno, postno,]
                 conn = sqlite3.connect(self.dbfile) # @UndefinedVariable
-                c = self.connect()
+                c = conn.cursor()
                 c.execute('INSERT INTO yottu_posts VALUES (NULL, ?, ?, ?)', values)
                 conn.commit()
+                
+                if c.rowcount:
+                    self.dlog.msg("Database: Inserted " + str(values))
+                else:
+                    self.dlog.msg("Failure inserting values into DB: " + str(values))
+                    
                 c.close()
                 
-                self.dlog.msg("Database: Inserted " + str(values))
+            
         
     def get_postno_from_threadno(self, threadno):
+        # FIXME this also needs to check the board
         if self.enabled:
             param = [threadno,]
-            c = self.connect() 
+            conn = sqlite3.connect(self.dbfile)  # @UndefinedVariable
+            c = conn.cursor()
             c.execute('SELECT postno FROM yottu_posts WHERE threadno = ?', param)
             
             # Fetch post numbers and store into res array
@@ -76,4 +80,6 @@ class Database(object):
                 res.append(row[0])
                 
             return res
+        else:
+            return []
                 
