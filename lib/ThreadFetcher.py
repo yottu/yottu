@@ -75,7 +75,8 @@ class ThreadFetcher(threading.Thread):
 	def save_image(self, *args, **kwargs):
 		try:
 			return self.contentFetcher.save_image(*args, **kwargs)
-		except:
+		except Exception as err:
+			self.dlog.excpt(err, msg=">>>in ThreadFetcher.save_image()", cn=self.__class__.__name__)
 			raise
 			
 
@@ -157,9 +158,7 @@ class ThreadFetcher(threading.Thread):
 
 					self.sb.setStatus(str(error_code))
 			except Exception as e:
-				self.sb.setStatus(str(e))
-				dlog.excpt(e)
-				pass
+				dlog.excpt(e, msg=">>>in ThreadFetcher.run()", cn=self.__class__.__name__)
 
 							
 			for update_n in range (self.update_n, -1, -1):
@@ -180,9 +179,8 @@ class ThreadFetcher(threading.Thread):
 							self.sb.draw(update_n=update_n, wait_n=wait_n)
 						else:
 							self.sb.draw(update_n)
-				except Exception as e:
-					dlog.excpt(e, cn=self.__class__.__name__)
-					pass
+				except Exception as err:
+					dlog.excpt(err, msg=">>>in ThreadFetcher.run() ->sb.draw()", cn=self.__class__.__name__)
 				
 
 				time.sleep(1)

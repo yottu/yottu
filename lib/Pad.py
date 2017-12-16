@@ -7,7 +7,6 @@ Basic class for ncurses pads such as CommandPad and BoardPad
 from __future__ import division
 import curses
 import unicodedata
-from DebugLog import DebugLog
 import re
 from Titlebar import Titlebar
 from Statusbar import Statusbar
@@ -40,7 +39,7 @@ class Pad(object):
 		self.tb = Titlebar(self.stdscr)
 		self.sb = Statusbar(self.stdscr, self.wl, nickname="(<Pad>)")
 		
-		self.dlog = DebugLog("debug.log")
+		self.dlog = self.wl.dlog #DebugLog("debug.log")
 		
 		self.dlog.msg("pmaxy: " + str(self.pmaxy), 5)
 		self.dlog.msg("actualpmaxy: " + str(self.actualpmaxy), 5)
@@ -377,7 +376,7 @@ class Pad(object):
 		finally:
 			self.restore_postion(y, x)
 		
-	
+	# FIXME reversed line doesn't look right in tmux
 	def reverseline(self, pos_y, mode=curses.A_STANDOUT):  # @UndefinedVariable
 		'''Changes background to font and font to background in a pos_y (y-pos)'''
 		try:

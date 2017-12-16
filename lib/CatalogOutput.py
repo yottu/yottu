@@ -16,6 +16,7 @@ class CatalogOutput(object):
 		self.search = search
 		self.tdict = {}
 		self.result_postno = [] # list of OPs containing search term
+		self.initial_run = True
 		self.dlog = DebugLog()
 		
 	def refresh(self, json):
@@ -23,6 +24,9 @@ class CatalogOutput(object):
 		
 		
 		for pages in self.catalog:
+			
+			page = str(pages['page'])
+			
 			for threads in pages['threads']:
 				
 				try:
@@ -36,14 +40,9 @@ class CatalogOutput(object):
 					time = datetime.datetime.fromtimestamp(threads['time']).strftime('%H:%M')
 				except:
 					continue
-				
-	
-				curses.use_default_colors() # @UndefinedVariable
-				for i in range(0, curses.COLORS):  # @UndefinedVariable
-					curses.init_pair(i + 1, i, -1) # @UndefinedVariable
-						
+									
 				# assign color to post number # start at unreserved colors
-				color = randint(3, 255)
+				color = randint(11, 240)
 	
 				try: replies = threads['replies']
 				except: replies = ""
@@ -109,8 +108,12 @@ class CatalogOutput(object):
 					self.dlog.excpt(e, ">>>in CatalogOutput.refresh()", cn=self.__class__.__name__)
 					raise
 
-				self.cp.addstr("\n\n")
-				
+				self.cp.addstr("\n")
+			
+			if self.initial_run: 
+				self.cp.addstr("\n---- Page: " + page + "\n\n")
+
+		self.initial_run = False				
 		return self.result_postno	
 		
 	def get_tdict(self):

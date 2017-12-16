@@ -12,7 +12,7 @@ class Autism:
 	def __init__(self, board, threadno="catalog", domain="a.4cdn.org"):
 		self.domain = domain
 		self.board = board
-		self.threadno = threadno
+		self.threadno = str(threadno)
 		self.jsoncontent = ""
 		self.lasttime = ""
 		self.tail_size = 0
@@ -108,7 +108,6 @@ class Autism:
 							if content_length and source == 'image':
 								statusText += "/" + str(content_length/1024) + "K" + "(" + str(len(content)*100/(content_length)) + "%)"
 								
-							curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_GREEN)  # @UndefinedVariable
 							self.stdscr.addstr(screensize_y-2, screensize_x-3-len(statusText), statusText, curses.color_pair(1))  # @UndefinedVariable
 							self.stdscr.refresh()
 						except Exception as err:
@@ -137,7 +136,8 @@ class Autism:
 # 					pass
 				
 				# blank
-				self.stdscr.addstr(screensize_y-2, screensize_x-3-len(statusText), len(statusText)*" ", curses.color_pair(2))  # @UndefinedVariable
+				if self.stdscr:
+					self.stdscr.addstr(screensize_y-2, screensize_x-3-len(statusText), len(statusText)*" ", curses.color_pair(1))  # @UndefinedVariable
 
 				return content
 			
@@ -211,7 +211,7 @@ class Autism:
 			self.dlog.excpt(e, msg=">>>in ContentFetcher.seconds_since_lasttime()", cn=self.__class__.__name__)
 	
 	
-	def get(self, source="board"):
+	def get(self, source="board", nocache=False):
 		
 		class CatalogAgeExceeded(ValueError):
 			pass

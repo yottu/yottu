@@ -6,11 +6,9 @@ from Pad import Pad
 from ThreadFetcher import ThreadFetcher
 import curses
 from PostReply import PostReply
-from DebugLog import DebugLog
 from TermImage import TermImage
 from Autism import Autism
 from Config import Config
-from Database import Database
 import thread
 import time
 
@@ -20,21 +18,23 @@ class BoardPad(Pad):
 	'''
 	def __init__(self, stdscr, wl):
 		super(BoardPad, self).__init__(stdscr, wl)
-		
 		self.board = ""
 		self.threadno = ""
-		self.comment = ""
-		self.subject = "" # TODO not implemented
 		
-		self.db = Database()
+		self.db = wl.db
 		
-		self.filename = None
-		self.ranger = False # If true filename contains path to actual filename
+		# Attributes used while creating a new post
+		self.post_comment = ""
+		self.post_subject = "" # TODO not implemented
+		self.post_filename = None
+		self.post_ranger = False # If true post_filename contains path to actual filename
 		
 		self.tdict = {}
 		self.threadFetcher = None
 		self.postReply = None
 		self.contentFetcher = None
+		
+		self.catalog_page = None # CatalogFetcher will update this with the current page  # TODO NotImplemented
 		
 		self.time_last_posted = 0 # Time last posted
 		self.time_last_posted_board = 0 # Time last posted on board
@@ -43,9 +43,6 @@ class BoardPad(Pad):
 		self.board_wait =  60   # static time to wait after posting on the same board
 		self.global_wait = 0    # static time to wait after posting
 		self.create_wait = 600  # static time to wait before making a new thread
-		
-		self.dlog = DebugLog(self)
-
 		
 	class NoDictError(Exception):
 		def __init__(self,*args,**kwargs):
@@ -94,7 +91,7 @@ class BoardPad(Pad):
 
 		
 	def on_resize(self):
-		self.dlog.msg("BoardPad: on_resize")
+		self.dlog.msg("BoardPad: on_resize", 5)
 		super(BoardPad, self).on_resize()
 		self.threadFetcher.on_resize()
 		
@@ -118,35 +115,41 @@ class BoardPad(Pad):
 	def display_captcha(self):
 		try:
 			if not self.postReply.display_captcha():
-				self.dlog.msg("w3mimgdisplay: Could not overlay captcha")
-		except:
+				self.wl.compadout("w3mimgdisplay: Could not overlay captcha, try the -X switch if you are using ssh")
+				self.dlog.msg("w3mimgdisplay: Could not overlay captcha, try the -X switch if you are using ssh")
+		except Exception as err:
+			self.dlog.excpt(err, msg=">>>in NoDictError.display_captcha()", cn=self.__class__.__name__)
 			self.dlog.msg("Could not display captcha. Check if w3mimgdisplay and feh are installed.")
 		
 	def join(self, board, threadno, nickname):
-		self.board = board
-		self.threadno = threadno
-		self.set_nickname(nickname)
-		self.init_cooldowns()
-		
-		self.sb.set_board(self.board)
-		self.sb.set_threadno(self.threadno)
-		
-		# FIXME ContentFetcher should probably only be called through ThreadFetcher since it is blocking 
-		self.contentFetcher = Autism(self.board, self.threadno)
-		self.contentFetcher.setstdscr(self.stdscr)
-		
-		self.threadFetcher = ThreadFetcher(self.threadno, self.stdscr, self.board, self, self.nickname)
-		self.threadFetcher.setDaemon(True)
-		self.threadFetcher.start()
-		
-		self.postReply = PostReply(self.board, self.threadno)
-		self.postReply.bp = self
+		try:
+			self.board = board
+			self.threadno = threadno
+			self.set_nickname(nickname)
+			self.init_cooldowns()
+			
+			self.sb.set_board(self.board)
+			self.sb.set_threadno(self.threadno)
+			
+			# FIXME ContentFetcher should probably only be called through ThreadFetcher since it is blocking 
+			self.contentFetcher = Autism(self.board, self.threadno)
+			self.contentFetcher.setstdscr(self.stdscr)
+			
+			self.threadFetcher = ThreadFetcher(self.threadno, self.stdscr, self.board, self, self.nickname)
+			self.threadFetcher.setDaemon(True)
+			self.threadFetcher.start()
+			
+			self.postReply = PostReply(self.board, self.threadno)
+			self.postReply.bp = self
+		except Exception as err:
+			self.dlog.excpt(err, msg=">>>in BoardPad.join()", cn=self.__class__.__name__)
+
 		
 	def post_prepare(self, comment="", filename=None, ranger=False, subject=""):
-		self.comment = comment
-		self.filename = filename
-		self.ranger = ranger
-		self.subject = subject
+		self.post_comment = comment
+		self.post_filename = filename
+		self.post_ranger = ranger
+		self.post_subject = subject
 		self.get_captcha()
 		
 	def get_captcha(self):
@@ -159,7 +162,7 @@ class BoardPad(Pad):
 		
 	def post_submit(self):
 		
-		if not self.filename and not self.comment:
+		if not self.post_filename and not self.post_comment:
 			raise ValueError("Either filename or comment must be set.")
 		
 		# TODO this timer is intra/interthread/board specific # FIXME timer values are not correct
@@ -167,19 +170,19 @@ class BoardPad(Pad):
 		
 		if wait > 0:
 			thread.start_new_thread(self.postReply.defer, (wait,), dict(nickname=self.nickname, 
-									comment=self.comment, subject=self.subject,
-									file_attach=self.filename, ranger=self.ranger))
+									comment=self.post_comment, subject=self.post_subject,
+									file_attach=self.post_filename, ranger=self.post_ranger))
 			response = ("deferred", wait)
 			
 		else:
-			response = self.postReply.post(nickname=self.nickname, comment=self.comment,
-										subject=self.subject, file_attach=self.filename,
-										ranger=self.ranger)
+			response = self.postReply.post(nickname=self.nickname, comment=self.post_comment,
+										subject=self.post_subject, file_attach=self.post_filename,
+										ranger=self.post_ranger)
 			
 
 		
-		self.filename = None
-		self.ranger = None
+		self.post_filename = None
+		self.post_ranger = None
 		
 			
 		return response
@@ -196,12 +199,15 @@ class BoardPad(Pad):
 					window.time_last_posted_board = time
 					
 	def update_db(self, postno):
+		''' Insert user made posts into database/threadwatcher if enabled in config '''
+		
 		try:
 		# FIXME update config with on_change
 			cfg = Config(debug=False)
 			if cfg.get('database.sqlite.enable'):
 				self.db.insert_post(self.board, self.threadno, postno)
-				pass
+			if cfg.get('threadwatcher.enable'):
+				self.wl.tw.insert(self.board, postno, self.threadno)
 		except Exception as e:
 			self.dlog.excpt(e, msg=">>>in BoardPad.update_db()", cn=self.__class__.__name__)
 							
@@ -227,7 +233,7 @@ class BoardPad(Pad):
 				return None
 			
 		except Exception as err: 
-			self.dlog.msg("BoardPad: Exception in assembling filename name: " + str(err))
+			self.dlog.msg("BoardPad: Exception in assembling filename: " + str(err))
 			raise
 
 		target_filename = self.threadFetcher.save_image(img_tim, img_ext, orig_filename, thumb=thumb)
@@ -316,7 +322,7 @@ class BoardPad(Pad):
 				return None
 			
 		except Exception as err: 
-			self.dlog.msg("BoardPad: Exception in assembling filename name: " + str(err))
+			self.dlog.msg("BoardPad: Exception in assembling filename: " + str(err))
 			raise
 
 		target_filename = self.threadFetcher.save_image(img_tim, img_ext, orig_filename)
@@ -345,6 +351,6 @@ class BoardPad(Pad):
 				
 	
 	tdict = property(get_tdict, set_tdict, None, None)
-	comment = property(get_comment, set_comment, None, None)
+	post_comment = property(get_comment, set_comment, None, None)
 		
 	

@@ -80,3 +80,6 @@ Left Mouse Button 		- mark line, displays thumb
 	t 			- reply to post number
 	b			- set image as background (requires feh)
 ```
+
+### I'm not rich
+BTC: 135Hedzpgbhsiye5TnCus9QY31pCZHKYYJ

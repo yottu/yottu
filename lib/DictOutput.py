@@ -4,20 +4,21 @@ Created on Oct 4, 2015
 
 '''
 from __future__ import division
-import curses
-from random import randint
-import re
+
 from Notifier import Notifier
-import datetime
-import json
 from Config import Config
 from DebugLog import DebugLog
-from Database import Database
+
+from random import randint
+import curses
+import re
+import datetime
+import time
+import json
+
 from bs4 import BeautifulSoup
 
 import warnings
-import time
-from nose import exc
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
 class DictOutput(object):
@@ -41,7 +42,8 @@ class DictOutput(object):
 		self.title = u"yottu v0.3 - https://github.com/yottu/yottu - Init: <DictOutput>".encode('utf-8')
 		self.cfg = Config()
 		
-		self.db = Database()
+		self.db = bp.wl.db
+		#self.db = Database()
 
 	def get_tdict(self):
 		return self.__tdict
@@ -52,6 +54,10 @@ class DictOutput(object):
 		
 	def mark(self, comment):
 		''' look for comment to be marked as user post in the next n refreshes '''
+		
+		if comment == "":
+			comment = "[File only]"
+		
 		self.comment_tbm_timeout = 3 # is decreased every refresh
 		self.comment_tbm = comment # FIXME does not work with utf-8
 		self.comment_tbm = re.sub('>>(\d+)', '\g<1>', self.comment_tbm)
@@ -71,10 +77,25 @@ class DictOutput(object):
 				self.originalpost.update({'replies': self.thread['posts'][0]['replies']})
 				self.originalpost.update({'images': self.thread['posts'][0]['images']})
 				self.originalpost.update({'unique_ips': self.thread['posts'][0]['unique_ips']})
-				thread_stats = " " + str(self.originalpost['replies']) + "R " \
-					+ str(self.originalpost['images']) + "I " \
-					+ str(self.originalpost['unique_ips']) + "P"
-				self.bp.tb.stats = thread_stats
+				self.originalpost.update({'bumplimit': self.thread['posts'][0]['bumplimit']})
+				self.originalpost.update({'imagelimit': self.thread['posts'][0]['imagelimit']})
+
+
+					
+				self.bp.tb.bumplimit = self.originalpost['bumplimit']
+				self.bp.tb.imagelmit = self.originalpost['imagelimit']
+				self.bp.tb.images = self.originalpost['images']
+				self.bp.tb.replies = self.originalpost['replies']
+				
+				if int(self.originalpost['unique_ips']) > int(self.bp.tb.unique_ips) and self.bp.tb.unique_ips != 0:
+					self.bp.tb.unique_ips_changed = True
+				else:
+					self.bp.tb.unique_ips_changed = False
+					
+					
+				self.bp.tb.unique_ips = self.originalpost['unique_ips']
+					
+				
 			except Exception as e: 
 				self.dlog.warn(e, logLevel=3, msg=">>>in DictOutput.refresh()")
 			
@@ -118,16 +139,12 @@ class DictOutput(object):
 				if no in self.tdict:
 					continue
 				
-				name = posts['name']
+				name = posts['name'][:16]
 				time = datetime.datetime.fromtimestamp(posts['time']).strftime('%H:%M')
 			except:
 				continue
 				
-			# assign color to post number
-			curses.use_default_colors()  # @UndefinedVariable
-			for i in range(0, curses.COLORS):  # @UndefinedVariable
-				curses.init_pair(i + 1, i, -1)  # @UndefinedVariable
-			color = randint(3, 255)
+			color = randint(11, 240)
 	
 	
 			refposts = "" # posts referenced in a reply
@@ -289,10 +306,10 @@ class DictOutput(object):
 	
 				# Make name decoration stand out if file is attached
 				else:
-					self.bp.addstr(" <", curses.color_pair(240))  # @UndefinedVariable
-					self.bp.addstr(file_ext_short, curses.color_pair(240) | curses.A_BOLD)  # @UndefinedVariable
+					self.bp.addstr(" <", curses.color_pair(250))  # @UndefinedVariable
+					self.bp.addstr(file_ext_short, curses.color_pair(250) | curses.A_BOLD)  # @UndefinedVariable
 					self.bp.addstr(name.encode('utf8'), curses.A_DIM)  # @UndefinedVariable
-					self.bp.addstr("> ", curses.color_pair(240))  # @UndefinedVariable
+					self.bp.addstr("> ", curses.color_pair(250))  # @UndefinedVariable
 				
 				# width of name including unicode east asian characters + len("<  > ") == 5	
 				indent += self.bp.calcline(name.encode('utf8'))+5
@@ -338,7 +355,7 @@ class DictOutput(object):
 								# highlight OP reference
 								if re.match(word, str(self.originalpost['no'])):
 									try:
-										self.bp.addstr("(OP) ", curses.A_BOLD | curses.color_pair(197), indent)  # @UndefinedVariable
+										self.bp.addstr("(OP) ", curses.A_BOLD | curses.color_pair(4), indent)  # @UndefinedVariable
 									except:
 										raise
 										pass
@@ -450,6 +467,7 @@ class DictOutput(object):
 		
 	
 	# source: https://stackoverflow.com/questions/328356/extracting-text-from-html-file-using-python
+	# Copy of function also exists in ThreadWatcher # TODO merge
 	def clean_html(self, html):
 		soup = BeautifulSoup(html)
 		

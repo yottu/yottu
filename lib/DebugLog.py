@@ -10,7 +10,7 @@ Created on Sep 28, 2015
 class DebugLog(object):
 
 	
-	def __init__(self, wl='000', outputFile="debug.log", debugLevel=3):
+	def __init__(self, wl=None, outputFile="debug.log", debugLevel=3):
 		
 		self.wl = wl
 		cfg = Config(debug=False)
@@ -26,7 +26,7 @@ class DebugLog(object):
 		
 		
 	def compad(self, message):
-		if self.wl != '000':
+		if self.wl:
 			try:
 				timePrefix = time.strftime("%H:%M ")
 				self.wl.compadout(timePrefix + message)

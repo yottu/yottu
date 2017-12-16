@@ -18,6 +18,8 @@ class Config(object):
 	'''
 	
 	def __init__(self, configDir=".config/yottu/", configFile="config", debug=True):
+
+		self.observers = []
 		
 		self.homeDir = expanduser("~/")
 		self.configDir = configDir # i.e. .config/yottu/
@@ -31,6 +33,18 @@ class Config(object):
 		self.cfg = ConfigParser.SafeConfigParser()
 		
 		self.readConfig()
+		
+	def config_changed(self, *args, **kwargs):
+		for observer in self.observers:
+			observer.on_config_change(*args, **kwargs)		
+			
+	def register(self, observer):
+		if not observer in self.observers:
+			self.observers.append(observer)
+			
+	def unregister(self, observer):
+		if observer in self.observers:
+			self.observers.remove(observer)
 
 	def set_config_dir_full_path(self, value):
 		self.__configDirFullPath = value
@@ -53,6 +67,7 @@ class Config(object):
 			'proxy.socks.address': '127.0.0.1', # 
 			'proxy.socks.enable': 'False', # 
 			'proxy.socks.port': '9050', #   
+			'threadwatcher.enable': 'True', # 
 			'user.options': '', #  
 			'user.name': '', #
 			'user.tripcode' : '', # 
@@ -103,6 +118,8 @@ class Config(object):
 		except Exception as e:
 			self.dlog.excpt(e)
 			pass
+		
+		self.config_changed(key, value)
 		
 	def add(self, key, key_sub, val_sub):
 		'''add json.dumps to value'''

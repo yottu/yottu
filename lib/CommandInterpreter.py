@@ -498,6 +498,9 @@ class CommandInterpreter(threading.Thread):
 	def exec_com(self):
 		# add to command history 
 		self.cmd_history_add()
+		
+		if self.command[0] == '/':
+			self.command = self.command.lstrip('/')
 
 		cmd_args = self.command.split()
 		
@@ -518,6 +521,10 @@ class CommandInterpreter(threading.Thread):
 			
 			# cut off the "say " while keeping newlines
 			comment = self.command[4:]
+			
+			# Do nothing if comment is empty and no file is attached
+			if not comment and not self.filename[1]:
+				return
 			
 			# Check if executed on a BoardPad
 			active_window = self.wl.get_active_window_ref()
@@ -793,6 +800,17 @@ class CommandInterpreter(threading.Thread):
 				except Exception as e:
 					self.dlog.excpt(e)
 					
+		
+		elif re.match("tw", self.command):
+			try:
+				arg = cmd_args.pop(1)
+				
+				if arg == "update":
+					self.wl.compadout("ThreadWatcher: Updating ..")
+					self.wl.tw.update()
+				
+			except IndexError:
+				self.wl.compadout("ThreadWatcher: -Not Implemented- /tw update to force update")
 					
 		elif re.match("window", self.command):
 			
@@ -838,9 +856,13 @@ class CommandInterpreter(threading.Thread):
 			if tdict_marked == False:
 				
 				activeWindow.tdict[int(self.postno_marked)]['marked'] = True
+				self.wl.tw.insert(activeWindow.board, self.postno_marked, activeWindow.threadno)
+				self.wl.db.insert_post(activeWindow.board, activeWindow.threadno, self.postno_marked)
 				activeWindow.sb.setStatus("Post marked.")
 			else:
 				activeWindow.tdict[int(self.postno_marked)]['marked'] = False
+				self.wl.tw.remove(activeWindow.board, self.postno_marked, activeWindow.threadno)
+				self.wl.db.delete_post(activeWindow.board, self.postno_marked)
 				activeWindow.sb.setStatus("Post no longer marked.")
 	
 	

@@ -75,9 +75,6 @@ class Statusbar(Bar):
 		except:
 			self.sb_blank = 0
 			
-
-				
-			
 	def draw(self, update_n="", wait_n=""):
 				
 		try:
@@ -100,11 +97,6 @@ class Statusbar(Bar):
 			self.calc_blank(len(counter))
 		
 
-			# Default Bar color
-			curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_GREEN)  # @UndefinedVariable
-			# Highlights in Bar color
-			curses.init_pair(2, curses.COLOR_YELLOW, curses.COLOR_GREEN)  # @UndefinedVariable
-			
 			# Add Clock, name and Window/Board/Thread
 			statusbar_text_head = u' '.join((self.sb_clock, self.sb_name, self.sb_win)).encode('UTF-8')
 
@@ -142,7 +134,7 @@ class Statusbar(Bar):
 			
 			
 		except Exception as err:
-			self.dlog.msg("Statusbar.draw(): " + str(err))
+			self.dlog.excpt(err, msg=">>>in Statusbar.draw()", cn=self.__class__.__name__)
 			#self.wl.ci.clinepos = 4
 			raise
 		
