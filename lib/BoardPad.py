@@ -8,7 +8,6 @@ import curses
 from PostReply import PostReply
 from TermImage import TermImage
 from Autism import Autism
-from Config import Config
 import thread
 import time
 
@@ -22,6 +21,7 @@ class BoardPad(Pad):
 		self.threadno = ""
 		
 		self.db = wl.db
+		self.cfg = wl.cfg
 		
 		# Attributes used while creating a new post
 		self.post_comment = ""
@@ -134,13 +134,15 @@ class BoardPad(Pad):
 			# FIXME ContentFetcher should probably only be called through ThreadFetcher since it is blocking 
 			self.contentFetcher = Autism(self.board, self.threadno)
 			self.contentFetcher.setstdscr(self.stdscr)
+			self.contentFetcher.sb = self.sb
+			
+			self.postReply = PostReply(self.board, self.threadno)
+			self.postReply.bp = self
 			
 			self.threadFetcher = ThreadFetcher(self.threadno, self.stdscr, self.board, self, self.nickname)
 			self.threadFetcher.setDaemon(True)
 			self.threadFetcher.start()
 			
-			self.postReply = PostReply(self.board, self.threadno)
-			self.postReply.bp = self
 		except Exception as err:
 			self.dlog.excpt(err, msg=">>>in BoardPad.join()", cn=self.__class__.__name__)
 
@@ -202,11 +204,9 @@ class BoardPad(Pad):
 		''' Insert user made posts into database/threadwatcher if enabled in config '''
 		
 		try:
-		# FIXME update config with on_change
-			cfg = Config(debug=False)
-			if cfg.get('database.sqlite.enable'):
+			if self.cfg.get('database.sqlite.enable'):
 				self.db.insert_post(self.board, self.threadno, postno)
-			if cfg.get('threadwatcher.enable'):
+			if self.cfg.get('threadwatcher.enable'):
 				self.wl.tw.insert(self.board, postno, self.threadno)
 		except Exception as e:
 			self.dlog.excpt(e, msg=">>>in BoardPad.update_db()", cn=self.__class__.__name__)
@@ -240,17 +240,16 @@ class BoardPad(Pad):
 		
 		try:
 			
-			cfg = Config(debug=False)
 			if img_ext.lower() in [ ".jpg", ".png", ".gif" ]:
-				file_path = cfg.get('file.image.directory')
+				file_path = self.cfg.get('file.image.directory')
 			else:
-				file_path = cfg.get('file.video.directory')
+				file_path = self.cfg.get('file.video.directory')
 				
 			# use external viewer (e.g. feh)
 			
 			if ext is True and img_ext == ".webm":
 				self.dlog.msg("--Testing")
-				subfile = file_path + cfg.get('file.video.subfile')
+				subfile = file_path + self.cfg.get('file.video.subfile')
 				if self.threadFetcher.dictOutput.create_sub(postno=postno, subfile=subfile):
 					TermImage.display_ext(target_filename, fullscreen=fullscreen, path=file_path, setbg=setbg, subfile=subfile)
 				else:
@@ -262,7 +261,7 @@ class BoardPad(Pad):
 				
 			else:
 				if thumb:
-					file_path = cfg.get('file.thumb.directory')
+					file_path = self.cfg.get('file.thumb.directory')
 					
 				TermImage.display(target_filename, file_path)
 					
@@ -295,14 +294,16 @@ class BoardPad(Pad):
 	def video_stream(self, source):
 		try:
 			# Testing TODO clean up
+			file_path = self.cfg.get('file.video.directory')
+			subfile = file_path + self.cfg.get('file.video.subfile')
 			
-			cfg = Config(debug=False)
-			file_path = cfg.get('file.video.directory')
-			subfile = file_path + cfg.get('file.video.subfile')
 			if self.threadFetcher.dictOutput.create_sub(postno=self.threadFetcher.dictOutput.originalpost['no'], subfile=subfile):
 				self.dlog.msg("Streaming from source " + source)
 				self.threadFetcher.dictOutput.append_to_subfile = True
 				TermImage.display_webm(source, stream=True, wait=False, fullscreen=True, path=file_path, subfile=subfile)
+				
+			else:
+				raise RuntimeError("Could not create subtitle file: " + str(subfile))
 				
 				
 		except Exception as err:

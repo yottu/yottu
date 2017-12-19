@@ -10,7 +10,6 @@ import unicodedata
 import re
 from Titlebar import Titlebar
 from Statusbar import Statusbar
-from Config import Config
 
 class Pad(object):
 	reservedscreen = 3
@@ -19,11 +18,13 @@ class Pad(object):
 	def __init__(self, stdscr, wl):
 		self.stdscr = stdscr
 		self.wl = wl # WindowLogic
+		self.cfg = self.wl.cfg
 		
 		self.screensize_y, self.screensize_x = self.stdscr.getmaxyx();
-		height = self.screensize_y-Pad.reservedscreen; width = self.screensize_x
+		height = self.screensize_y-Pad.reservedscreen
+		width = self.screensize_x
 		
-		self.pheight = height;
+		self.pheight = height
 		self.pwidth = width
 		self.mypad = curses.newpad(self.pheight+Pad.padbuffersize, self.pwidth)  # @UndefinedVariable
 		curses.curs_set(False)  # @UndefinedVariable
@@ -36,7 +37,7 @@ class Pad(object):
 		(self.pmaxy, self.pmaxx) = self.mypad.getmaxyx()
 		self.actualpmaxy = self.pmaxy-Pad.padbuffersize
 		
-		self.tb = Titlebar(self.stdscr)
+		self.tb = Titlebar(self.stdscr, self.wl)
 		self.sb = Statusbar(self.stdscr, self.wl, nickname="(<Pad>)")
 		
 		self.dlog = self.wl.dlog #DebugLog("debug.log")
@@ -73,10 +74,9 @@ class Pad(object):
 		''' Raise window on configuration directive '''
 		try:
 			
-			cfg = Config(debug=False)
 			window_index = self.wl.get_window(self)
 			active_window_index = self.wl.get_active_window()
-			if cfg.get('window.board.autofocus') and window_index is not active_window_index:
+			if self.cfg.get('window.board.autofocus') and window_index is not active_window_index:
 				self.wl.set_active_window(window_index)
 				self.autoScroll = True
 				self.auto_scroll()
@@ -97,7 +97,7 @@ class Pad(object):
 		try:
 			if self.autoScroll and self.__position is self.size:
 				self.clear_unread_window_elements()
-	
+			self.wl.sb = self.sb
 			self.sb.draw()
 			self.tb.draw()
 			self.draw()
@@ -364,7 +364,7 @@ class Pad(object):
 								pass
 							
 							postno += char
-						except Exception as err:
+						except Exception:
 							if len(postno) > 0:
 								return postno
 							return None 

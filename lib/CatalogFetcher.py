@@ -8,22 +8,23 @@ from Autism import Autism
 import curses
 import time
 import threading
-import Config
-from DebugLog import DebugLog
 
 class CatalogFetcher(threading.Thread):
 	def __init__(self, stdscr, board, cp, search="", cache_only=False):
 		self.stdscr = stdscr
 		self.board = board
+		
 		self.cp = cp # CatalogPad
+		self.wl = cp.wl
+		self.dlog = self.wl.dlog
+		
 		self.search = search
 		self.cache_only = cache_only # True: Do not re-fetch immediately if cached catalog is available
 		self.sb = self.cp.sb
 		self.tb = self.cp.tb
 		
-		cfg = Config.Config(debug=False)
 		try:
-			self.catalog_update_time = int(cfg.get('catalog.update.time'))
+			self.catalog_update_time = int(self.wl.cfg.get('catalog.update.time'))
 		except:
 			self.catalog_update_time = 180
 		
@@ -53,14 +54,13 @@ class CatalogFetcher(threading.Thread):
 	
 
 	def run(self):
-		dlog = DebugLog()
-		dlog.msg("CatalogFetcher: Running on /" + self.board + "/", 4)
+		self.dlog.msg("CatalogFetcher: Running on /" + self.board + "/", 4)
 		
 		try:
 			catOutput = CatalogOutput(self.cp, self.search)
 			getCatalog = Autism(self.board)
 		except Exception as e:
-			dlog.excpt(e)
+			self.dlog.excpt(e)
 			self.stdscr.addstr(0, 0, str(e), curses.A_REVERSE)  # @UndefinedVariable
 			self.stdscr.refresh()
 		
@@ -68,12 +68,13 @@ class CatalogFetcher(threading.Thread):
 		
 		while True:
 			
-			dlog.msg("CatalogFetcher: Fetching for /" + self.board + "/", 3)
+			self.dlog.msg("CatalogFetcher: Fetching for /" + self.board + "/", 3)
 			if self._stop.is_set():
-				dlog.msg("CatalogFetcher: Stop signal for /" + self.board + "/", 3)
+				self.dlog.msg("CatalogFetcher: Stop signal for /" + self.board + "/", 3)
 				break
 	
 			try:
+				getCatalog.sb = self.sb	
 				getCatalog.setstdscr(self.stdscr)
 				catalog_state = getCatalog.get("catalog")
 				catalog = getattr(getCatalog, "jsoncontent")
@@ -102,8 +103,7 @@ class CatalogFetcher(threading.Thread):
 				
 			except Exception as e:
 				self.sb.setStatus(str(e))
-				dlog.excpt(e)
-				pass
+				self.dlog.excpt(e)
 				
 			if self._active:		
 				self.tb.draw()
@@ -120,7 +120,7 @@ class CatalogFetcher(threading.Thread):
 					if self._active:
 						self.sb.draw(update_n)
 				except Exception as e:
-					dlog.excpt(e)
+					self.dlog.excpt(e)
 					pass
 				
 

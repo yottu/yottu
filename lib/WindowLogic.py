@@ -4,15 +4,15 @@ Created on Oct 9, 2015
 This class is for creating a CommandPad and managing BoardPads
 
 '''
-from CommandPad import CommandPad
-from BoardPad import BoardPad
-from DebugLog import DebugLog
-from CatalogPad import CatalogPad
-from Config import Config
-from ThreadWatcher import ThreadWatcher
-
 import curses
-from lib.MessagePad import MessagePad
+
+from DebugLog import DebugLog
+from Config import Config
+from CommandPad import CommandPad
+from MessagePad import MessagePad
+from BoardPad import BoardPad
+from CatalogPad import CatalogPad
+from ThreadWatcher import ThreadWatcher
 from Database import Database
 
 
@@ -38,11 +38,14 @@ class WindowLogic(object):
 		
 		self.dlog = DebugLog(self)
 		try:
-			self.tw = None
-			self.db = Database()
-			
 			self.cfg = Config()
 			self.cfg.register(self)
+			
+			self.sb = None
+			self.tw = None
+			self.db = Database(self)
+			
+
 			if self.cfg.get('threadwatcher.enable'):
 				self.dlog.msg("Starting ThreadWatcher")
 				self.tw = ThreadWatcher(self)
@@ -67,11 +70,14 @@ class WindowLogic(object):
 			self.dlog.excpt(err, msg=">>>in WindowLogic.__init__()", cn=self.__class__.__name__)
 			raise
 
-	def on_config_change(self):
+	def on_config_change(self, *args, **kwargs):
 		self.cfg = Config()
+		self.db.on_config_change(*args, **kwargs)
+		self.dlog.msg("Config change detected")
 		if self.cfg.get('threadwatcher.enable') and not self.tw:
 			self.dlog.msg("Starting ThreadWatcher")
 			self.tw = ThreadWatcher(self)
+		
 
 	def set_nickname(self, value):
 		self.__nickname = value

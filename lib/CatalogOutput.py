@@ -8,21 +8,21 @@ import curses
 from random import randint
 import re
 import datetime
-from DebugLog import DebugLog
 
 class CatalogOutput(object):
 	def __init__(self, cp, search=""):
 		self.cp = cp
+		self.dlog = cp.dlog
 		self.search = search
 		self.tdict = {}
 		self.result_postno = [] # list of OPs containing search term
 		self.initial_run = True
-		self.dlog = DebugLog()
+		
 		
 	def refresh(self, json):
 		self.catalog = json
 		
-		
+		self.cp.stdscr.noutrefresh()
 		for pages in self.catalog:
 			
 			page = str(pages['page'])
@@ -113,7 +113,10 @@ class CatalogOutput(object):
 			if self.initial_run: 
 				self.cp.addstr("\n---- Page: " + page + "\n\n")
 
-		self.initial_run = False				
+		self.initial_run = False
+		
+		curses.doupdate()  # @UndefinedVariable
+
 		return self.result_postno	
 		
 	def get_tdict(self):

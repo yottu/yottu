@@ -9,7 +9,6 @@ import curses
 import threading
 from DebugLog import DebugLog
 from BoardPad import BoardPad
-import Config
 import re
 import json
 from urllib2 import HTTPError
@@ -30,6 +29,8 @@ class CommandInterpreter(threading.Thread):
 		self.stdscr = stdscr
 		self.wl = wl
 		self.wl.ci = self
+		self.cfg = self.wl.cfg
+		
 		self.screensize_y = 0
 		self.screensize_x = 0
 		
@@ -40,7 +41,6 @@ class CommandInterpreter(threading.Thread):
 		
 		Thread.__init__(self)
 		
-		self.cfg = Config.Config()
 		
 		# For Saving/Restoring window state #FIXME
 		#self.state_file = "state.pickle"
@@ -633,11 +633,11 @@ class CommandInterpreter(threading.Thread):
 		
 		# Ignore feature
 		elif re.match("ignore", self.command) or re.match("except", self.command):
-			list = cmd_args.pop(0)
+			list_ = cmd_args.pop(0)
 			
-			if list == "ignore":
+			if list_ == "ignore":
 				filterlist = self.cfg.get('filter.ignore.list')
-			elif list == "except":
+			elif list_ == "except":
 				filterlist = self.cfg.get('filter.except.list')
 		
 			def list_filter(filterlist):

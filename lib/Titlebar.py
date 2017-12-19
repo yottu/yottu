@@ -4,8 +4,8 @@ import curses
 
 
 class Titlebar(Bar):
-	def __init__(self, stdscr):
-		super(Titlebar, self).__init__(stdscr)
+	def __init__(self, stdscr, wl):
+		super(Titlebar, self).__init__(stdscr, wl)
 		self.screensize_y, self.screensize_x = stdscr.getmaxyx()
 		self.sb_blank = 1
 		
@@ -21,7 +21,7 @@ class Titlebar(Bar):
 		
 
 		
-		self.set_title(u"yottu v0.3 - https://github.com/yottu/yottu".encode('utf-8')
+		self.set_title(u"yottu v0.4 - https://github.com/yottu/yottu".encode('utf-8')
 		)
 		
 	def draw(self):

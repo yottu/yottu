@@ -5,8 +5,6 @@ Created on Dec 10, 2017
 '''
 
 import sqlite3
-from DebugLog import DebugLog
-from Config import Config
 
 # Table: posts
 # +--------------------+-------+----------+--------+
@@ -16,12 +14,15 @@ from Config import Config
 # +--------------------+-------+----------+--------+
 
 class Database(object):
-    def __init__(self):
-        self.dlog = DebugLog()
+    def __init__(self, wl):
+        self.wl = wl
+        
+        self.dlog = wl.dlog
+        self.cfg = wl.cfg
+        
         self.dbfile = None
         self.enabled = False
-        self.cfg = Config(debug=False)
-        self.cfg.register(self)
+        
         self.on_config_change()
         
     

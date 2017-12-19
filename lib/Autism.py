@@ -21,6 +21,7 @@ class Autism:
 		self.cached_file_exists = False
 		self.dlog = DebugLog.DebugLog()
 		self.stdscr = None
+		self.sb = None
 		
 
 
@@ -42,7 +43,7 @@ class Autism:
 		
 
 					
-		chunk_size = 128
+		chunk_size = 1024
 		for i in range(1, 10):
 			try:
 				timeout = 300*i
@@ -98,18 +99,24 @@ class Autism:
 					content += data
 					
 					# Show thread download progress in the location of the statusbar 
-					if self.stdscr:
+					if self.stdscr and self.sb:
 						try:
-							screensize_y, screensize_x = self.stdscr.getmaxyx();
+							# Save position
+							#saved_y, saved_x = self.stdscr.getyx()
+
+							#screensize_y, screensize_x = self.stdscr.getmaxyx();
 							statusText = " " + source.upper() + "-GET: " + str(len(content)/1024) + "K"
 							
 							# show the progress bar/total size for uncompressed images,
 							# TODO need to work with request.raw to get the correct size for gzip'd content 
 							if content_length and source == 'image':
 								statusText += "/" + str(content_length/1024) + "K" + "(" + str(len(content)*100/(content_length)) + "%)"
-								
-							self.stdscr.addstr(screensize_y-2, screensize_x-3-len(statusText), statusText, curses.color_pair(1))  # @UndefinedVariable
-							self.stdscr.refresh()
+							
+							self.sb.setStatus(statusText)	
+							#self.stdscr.addstr(screensize_y-2, screensize_x-3-len(statusText), statusText, curses.color_pair(1))  # @UndefinedVariable
+							# Restore prior position
+							#self.stdscr.move(saved_y, saved_x)
+							#self.stdscr.refresh()
 						except Exception as err:
 							self.dlog.warn(err, logLevel=3, msg=">>>in ContentFetcher.query()")
 							continue
@@ -136,8 +143,8 @@ class Autism:
 # 					pass
 				
 				# blank
-				if self.stdscr:
-					self.stdscr.addstr(screensize_y-2, screensize_x-3-len(statusText), len(statusText)*" ", curses.color_pair(1))  # @UndefinedVariable
+				if self.sb:
+					self.sb.setStatus(str(content_length/1024) + "K (100%)")
 
 				return content
 			

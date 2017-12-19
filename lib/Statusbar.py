@@ -7,9 +7,9 @@ from Bar import Bar
 class Statusbar(Bar):
 
 	def __init__(self, stdscr, wl, nickname="", board="", threadno=""):
-		super(Statusbar, self).__init__(stdscr)
+		super(Statusbar, self).__init__(stdscr, wl)
 		
-		self.wl = wl
+		self.stdscr = stdscr
 		self.sb_status = ""
 		self.sb_blank = 0
 		self.sb_windowno = "X"
@@ -78,6 +78,7 @@ class Statusbar(Bar):
 	def draw(self, update_n="", wait_n=""):
 				
 		try:
+			self.stdscr.noutrefresh()
 			self.sb_clock = "[" + time.strftime('%H:%M') + "]"
 			if self.board:
 				self.sb_win = "[" + str(self.sb_windowno) + ":4chan/"+ self.board + "/" + str(self.threadno) + "]"
@@ -103,8 +104,9 @@ class Statusbar(Bar):
 			# Save position
 			saved_y, saved_x = self.stdscr.getyx()
 
+
 			self.stdscr.addstr(self.screensize_y-2, 0, statusbar_text_head, curses.color_pair(1))  # @UndefinedVariable
-			
+			self.stdscr.refresh()
 			if self.unread_windows:
 				for unread_win, cattrib, unread_lines in self.unread_windows:
 					unread_win = str(unread_win+1)
@@ -132,17 +134,20 @@ class Statusbar(Bar):
 			if self.wl.ci:
 				self.wl.ci.clinepos = saved_x
 			
+			curses.doupdate()  # @UndefinedVariable
 			
 		except Exception as err:
 			self.dlog.excpt(err, msg=">>>in Statusbar.draw()", cn=self.__class__.__name__)
 			#self.wl.ci.clinepos = 4
 			raise
 		
+
 		return
 	
 	def setStatus(self, status):
 		''' sets Status text located right most before n_update '''
 		self.sb_status = status[:self.sb_blank-1]
+		self.draw()
 		
 		
 	nickname = property(get_nickname, set_nickname, None, None)

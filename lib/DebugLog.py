@@ -36,7 +36,10 @@ class DebugLog(object):
 		
 	def msg(self, message, logLevel=1, e=""):
 		if logLevel <= self.debugLevel:
-			self.compad(message)
+			
+			# Outputting level 5 leads to recursion loops
+			if logLevel < 5:
+				self.compad(message)
 			if e:
 				message = str(time.ctime()) + " " + str(message) + " (E: " + str(type(e).__name__) + ": " + str(e) + ")"
 			else:

@@ -3,19 +3,19 @@ Created on May 29, 2017
 
 '''
 import unicodedata
-from DebugLog import DebugLog
 
 class Bar(object):
     '''
     classdocs
     '''
     
-    def __init__(self, stdscr):
+    def __init__(self, stdscr, wl):
         self.stdscr = stdscr
+        self.wl = wl
+        
+        self.dlog = wl.dlog
+        
         self.screensize_y, self.screensize_x = stdscr.getmaxyx()
-        self.dlog = DebugLog()
-
-
         
     def on_resize(self):
         self.screensize_y, self.screensize_x = self.stdscr.getmaxyx()

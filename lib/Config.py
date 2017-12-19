@@ -28,7 +28,7 @@ class Config(object):
 		self.configFullPath = self.homeDir + self.configDir + self.configFile # i.e. /home/user/.config/yottu/config
 		
 		self.debug = debug # avoid recursion loop if called by Config
-		if debug:
+		if self.debug:
 			self.dlog = DebugLog.DebugLog()
 		self.cfg = ConfigParser.SafeConfigParser()
 		
@@ -68,6 +68,7 @@ class Config(object):
 			'proxy.socks.enable': 'False', # 
 			'proxy.socks.port': '9050', #   
 			'threadwatcher.enable': 'True', # 
+			'threadwatcher.update.interval': 300, #
 			'user.options': '', #  
 			'user.name': '', #
 			'user.tripcode' : '', # 
@@ -107,17 +108,17 @@ class Config(object):
 					self.cfg.set('Main', key, json.dumps(value))
 				else:
 					self.cfg.set('Main', key, json.dumps(None))
+				
+				self.config_changed(key, value)
 
 			else:
 				raise KeyError('Invalid setting: ' + str(key))
-		except KeyError as e:
+		except KeyError:
 			raise
 		except DuplicateSectionError as w:
 			self.dlog.warn(w)
-			pass
-		except Exception as e:
-			self.dlog.excpt(e)
-			pass
+		except Exception as err:
+			self.dlog.excpt(err, msg=">>>in Config.set()", cn=self.__class__.__name__)
 		
 		self.config_changed(key, value)
 		
@@ -130,6 +131,7 @@ class Config(object):
 		# try to load existing values
 		try:
 			keyval = json.loads(self.get(key))
+			self.config_changed()
 		except:
 			pass
 		
@@ -146,6 +148,7 @@ class Config(object):
 # 		except:
 # 			pass
 # 		del keyval['key_sub']
+#		self.config_changed()
 		pass
 	
 	def clear(self, key):

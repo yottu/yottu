@@ -5,7 +5,6 @@ Created on Dec 11, 2017
 '''
 
 from Autism import Autism
-from Database import Database
 from Notifier import Notifier
 
 import re
@@ -21,6 +20,7 @@ class ThreadWatcher(object):
         
         self.wl = wl
         self.dlog = self.wl.dlog
+        self.db = self.wl.db
         
         # Dict of containing board, OP of thread and the posts made in that thread to watch for replies
         # Structure: {'board': {threadop: {'userposts': {123, 124}, 'active': True}} } to watch 
@@ -83,8 +83,7 @@ class ThreadWatcher(object):
         ''' Load user made posts from database and inserts it into self.threadops '''
         
         try:
-            db = Database()
-            for db_board_userpost_threadop in db.get_active():
+            for db_board_userpost_threadop in self.db.get_active():
                 self.dlog.msg("Loading tuple " + str(db_board_userpost_threadop) + " into ThreadWatcher")
                 self.insert(*db_board_userpost_threadop)
                 
@@ -130,6 +129,7 @@ class ThreadWatcher(object):
             
             contentFetcher = Autism(board, threadno=op)
             contentFetcher.setstdscr(self.wl.stdscr)
+            contentFetcher.sb = self.wl.sb
             if contentFetcher.get() == "cached":
                 contentFetcher.get()
             

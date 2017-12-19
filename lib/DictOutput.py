@@ -6,8 +6,6 @@ Created on Oct 4, 2015
 from __future__ import division
 
 from Notifier import Notifier
-from Config import Config
-from DebugLog import DebugLog
 
 from random import randint
 import curses
@@ -31,7 +29,7 @@ class DictOutput(object):
 		self.comment_tbm = None
 		self.comment_tbm_timeout = 0
 		
-		self.dlog = DebugLog(self)
+		self.dlog = self.bp.wl.dlog
 		
 		self.subfile = None
 		self.subfile_start = None
@@ -39,10 +37,10 @@ class DictOutput(object):
 		self.append_to_subfile = False # Write new comment to subfile
 		self.subfile_count = 0 # Number of comments in live subfile
 		
-		self.title = u"yottu v0.3 - https://github.com/yottu/yottu - Init: <DictOutput>".encode('utf-8')
-		self.cfg = Config()
+		self.title = u""
+		self.cfg = self.bp.wl.cfg
 		
-		self.db = bp.wl.db
+		self.db = self.bp.wl.db
 		#self.db = Database()
 
 	def get_tdict(self):
@@ -69,7 +67,8 @@ class DictOutput(object):
 		
 		#self.tdict['OP'] = {'no': 213, 'com': 'unset', 'sub': 'unset'.encode('utf-8'), 'semantic-url': 'unset'.encode('utf-8')}
 		
-		# Get some information about the thread (post count, reply count, etc) from the first post 
+		# Get some information about the thread (post count, reply count, etc) from the first post
+		self.bp.stdscr.noutrefresh() 
 		try:
 			self.originalpost.update({'no': self.thread['posts'][0]['no']})
 			
@@ -381,6 +380,8 @@ class DictOutput(object):
 				self.bp.update_thread(notail=True)
 		except Exception as e:
 			self.dlog.excpt(e, msg=">>>in DictOutput.refresh() ->refetch", cn=self.__class__.__name__)
+	
+		curses.doupdate()  # @UndefinedVariable
 
 		
 	def subfile_append(self, com):
@@ -420,9 +421,11 @@ class DictOutput(object):
 	# TODO this might need its own class
 	def create_sub(self, postno, subfile):
 		''' create a subfile for overlaying comments over webm '''
-		self.subfile = subfile
-		self.subfile_start = time.time()
+
 		try:
+			self.subfile = subfile
+			self.subfile_start = time.time()
+			
 			comments = []
 			for post in self.tdict:
 				for refpost in self.tdict[post]['refposts']:
@@ -432,7 +435,8 @@ class DictOutput(object):
 						continue
 					continue
 			
-			if comments:
+			# Don't create subfile if there are no replies unless it's a stream
+			if comments or self.append_to_subfile:
 				with open(subfile, 'w') as fh:
 					fh.write(u"[Script Info]\n# Thank you Liisachan from forum.doom9.org\n".encode('utf-8'))
 					fh.write("ScriptType: v4.00+\nCollisions: Reverse\nPlayResX: 1280\n")

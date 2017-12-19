@@ -49,7 +49,7 @@ class CommandPad(Pad):
 		self.addstr("\ \ / /__| |_| |_ _  _\n")
 		self.addstr(" \ V / _ \  _|  _| || |\n")
 		self.addstr("  |_|\___/\__|\__|\_,_|\n")
-		self.addstr("Yottu v0.3 - https://github.com/yottu/yottu\n", curses.A_BOLD)  # @UndefinedVariable
+		self.addstr("Yottu v0.4 - https://github.com/yottu/yottu\n", curses.A_BOLD)  # @UndefinedVariable
 		self.addstr(u"฿ 135Hedzpgbhsiye5TnCus9QY31pCZHKYYJ\n".encode('utf-8'))  # @UndefinedVariable
 		self.addstr("\n")
 		self.addstr("Type /help for usage\n")

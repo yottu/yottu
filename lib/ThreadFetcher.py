@@ -5,7 +5,6 @@ Created on Oct 5, 2015
 from threading import Thread
 from DictOutput import DictOutput
 from Autism import Autism
-from DebugLog import DebugLog
 
 import curses
 import time
@@ -18,6 +17,7 @@ class ThreadFetcher(threading.Thread):
 		self.stdscr = stdscr
 		self.board = board
 		self.bp = bp
+		self.dlog = self.bp.wl.dlog
 		self.nickname = nickname
 		self.contentFetcher = Autism(self.board, self.threadno)
 
@@ -81,25 +81,24 @@ class ThreadFetcher(threading.Thread):
 			
 
 	def run(self):
-		dlog = DebugLog()
-		dlog.msg("ThreadFetcher: Running on /" + self.board + "/" + self.threadno, 4)
+		self.dlog.msg("ThreadFetcher: Running on /" + self.board + "/" + self.threadno, 4)
 		
 		try:
 			self.dictOutput = DictOutput(self.bp)
 			self.bp.postReply.dictOutput = self.dictOutput # Needed for marking own comments
 		except Exception as e:
-			dlog.excpt(e, msg=">>>in ThreadFetcher.run()", cn=self.__class__.__name__)
+			self.dlog.excpt(e, msg=">>>in ThreadFetcher.run() ->dictOutput", cn=self.__class__.__name__)
 			self.stdscr.addstr(0, 0, str(e), curses.A_REVERSE)  # @UndefinedVariable
 			self.stdscr.refresh()
 				
 		
 		while True:
 			
-			dlog.msg("ThreadFetcher: Fetching for /" + self.board + "/" + self.threadno, 5)
+			self.dlog.msg("ThreadFetcher: Fetching for /" + self.board + "/" + self.threadno, 5)
 			
 			# leave update loop if stop is set
 			if self._stop.is_set():
-				dlog.msg("ThreadFetcher: Stop signal for /" + self.board + "/" + self.threadno, 3)
+				self.dlog.msg("ThreadFetcher: Stop signal for /" + self.board + "/" + self.threadno, 3)
 				break
 			
 			# Do additional things when update bit is set
@@ -108,6 +107,7 @@ class ThreadFetcher(threading.Thread):
 	
 			try:
 				self.sb.setStatus('')
+				self.contentFetcher.sb = self.sb
 				self.contentFetcher.setstdscr(self.stdscr)
 				thread_state = self.contentFetcher.get()
 				thread = getattr(self.contentFetcher, "jsoncontent")
@@ -143,13 +143,13 @@ class ThreadFetcher(threading.Thread):
 				# stop updating if thread 404'd
 				if error_code == 404:
 					self.sb.setStatus(str(e.response.reason) + ": " + str(e.response.url))
-					dlog.excpt(e)
+					self.dlog.excpt(e)
 					break
 				
 				# assume temporary error for e.g. 403	
 				elif  400 <= error_code < 500:
 					self.sb.setStatus(str(e.response.reason) + ": " + str(e.response.url))
-					dlog.warn(e)
+					self.dlog.warn(e)
 				
 				# increase update interval on stale thread 
 				elif error_code == 304:
@@ -158,7 +158,7 @@ class ThreadFetcher(threading.Thread):
 
 					self.sb.setStatus(str(error_code))
 			except Exception as e:
-				dlog.excpt(e, msg=">>>in ThreadFetcher.run()", cn=self.__class__.__name__)
+				self.dlog.excpt(e, msg=">>>in ThreadFetcher.run()", cn=self.__class__.__name__)
 
 							
 			for update_n in range (self.update_n, -1, -1):
@@ -180,13 +180,13 @@ class ThreadFetcher(threading.Thread):
 						else:
 							self.sb.draw(update_n)
 				except Exception as err:
-					dlog.excpt(err, msg=">>>in ThreadFetcher.run() ->sb.draw()", cn=self.__class__.__name__)
+					self.dlog.excpt(err, msg=">>>in ThreadFetcher.run() ->sb.draw()", cn=self.__class__.__name__)
 				
 
 				time.sleep(1)
 				
 		# End of thread loop
 				
-		dlog.msg("ThreadFetcher: Leaving /" + self.board + "/" + self.threadno, 3)
+		self.dlog.msg("ThreadFetcher: Leaving /" + self.board + "/" + self.threadno, 3)
 				
 	tdict = property(get_tdict, set_tdict, None, None)
