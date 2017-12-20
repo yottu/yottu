@@ -747,9 +747,13 @@ class CommandInterpreter(threading.Thread):
 				self.dlog.msg("Autoloading..")
 				self.readconfig()
 				
-		elif re.match("mpv", self.command):
+		elif re.match("mpv", self.command) \
+		  or re.match("twitch", self.command) \
+		  or re.match("youtube", self.command):
+			
 			try:
-				mpv_source = cmd_args.pop(1)
+				site = cmd_args.pop(0)
+				mpv_source = cmd_args.pop(0)
 			except:
 				self.wl.compadout("Usage: /mpv <source>")
 				return
@@ -760,8 +764,7 @@ class CommandInterpreter(threading.Thread):
 				self.dlog.msg("/mpv must be used in a thread.")
 				return
 			
-			active_window.video_stream(mpv_source)
-			
+			active_window.video_stream(mpv_source, site=site)
 			
 		elif re.match("nick", self.command):
 			cmd_args.pop(0)

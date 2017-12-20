@@ -2,14 +2,15 @@
 Created on Sep 28, 2015
 
 '''
+import thread
+import time
+
 from Pad import Pad
 from ThreadFetcher import ThreadFetcher
-import curses
 from PostReply import PostReply
 from TermImage import TermImage
 from Autism import Autism
-import thread
-import time
+from Subtitle import Subtitle
 
 class BoardPad(Pad):
 	'''
@@ -33,6 +34,8 @@ class BoardPad(Pad):
 		self.threadFetcher = None
 		self.postReply = None
 		self.contentFetcher = None
+		
+		self.subtitle = None # Subtitle class, gets initialized when needed
 		
 		self.catalog_page = None # CatalogFetcher will update this with the current page  # TODO NotImplemented
 		
@@ -248,9 +251,12 @@ class BoardPad(Pad):
 			# use external viewer (e.g. feh)
 			
 			if ext is True and img_ext == ".webm":
-				self.dlog.msg("--Testing")
+				
+				
 				subfile = file_path + self.cfg.get('file.video.subfile')
-				if self.threadFetcher.dictOutput.create_sub(postno=postno, subfile=subfile):
+				subtitle = Subtitle(subfile, self.dlog)
+				
+				if subtitle.create_sub(postno=postno, tdict=self.tdict):
 					TermImage.display_ext(target_filename, fullscreen=fullscreen, path=file_path, setbg=setbg, subfile=subfile)
 				else:
 					TermImage.display_ext(target_filename, fullscreen=fullscreen, path=file_path, setbg=setbg)
@@ -291,19 +297,32 @@ class BoardPad(Pad):
 		except Exception as err:
 			self.dlog.excpt(err, msg=">>>in play_all_videos()", cn=self.__class__.__name__)
 			
-	def video_stream(self, source):
+	def video_stream(self, source, site=None):
+		'''
+		Stream video from an URL 
+		'''
+		
+		if site == "twitch":
+			source = "https://twitch.tv/" + source.split("/").pop()
+		elif site == "youtube":
+			source = "https://youtube.com/?v=" + source.split("v=").pop()
+		
 		try:
 			# Testing TODO clean up
 			file_path = self.cfg.get('file.video.directory')
 			subfile = file_path + self.cfg.get('file.video.subfile')
+			self.subtitle = Subtitle(subfile, self.dlog, stream=True)
+				
 			
-			if self.threadFetcher.dictOutput.create_sub(postno=self.threadFetcher.dictOutput.originalpost['no'], subfile=subfile):
+			self.subtitle.append_to_subfile = True
+			if self.subtitle.create_sub(postno=self.threadFetcher.dictOutput.originalpost['no'], tdict=self.tdict):
 				self.dlog.msg("Streaming from source " + source)
-				self.threadFetcher.dictOutput.append_to_subfile = True
 				TermImage.display_webm(source, stream=True, wait=False, fullscreen=True, path=file_path, subfile=subfile)
 				
 			else:
 				raise RuntimeError("Could not create subtitle file: " + str(subfile))
+				TermImage.display_webm(source, stream=True, wait=False, fullscreen=True, path=file_path)
+
 				
 				
 		except Exception as err:
