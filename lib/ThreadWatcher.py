@@ -51,7 +51,7 @@ class ThreadWatcher(object):
                 else:
                     self.threadops[board][threadop]['userposts'].add(userpost)
                     
-                self.dlog.msg("ThreadWatcher: Added >>>/" + str(board) + "/" + str(userpost))
+                self.dlog.msg("ThreadWatcher: Added >>>/" + str(board) + "/" + str(userpost), 3)
 
             except KeyError:
                 self.threadops.update({board: {threadop: {'userposts': {userpost}, 'active': True}}})
@@ -78,6 +78,19 @@ class ThreadWatcher(object):
         except Exception as err:
             self.dlog.excpt(err, msg=">>>in ThreadWatcher.remove()", cn=self.__class__.__name__)
             raise
+        
+    def remove_inactive_threads(self):
+        ''' Remove all marked as inactive threads from the watch list '''
+        
+        try:
+            for board, ops in self.threadops.items():
+                for thread, values in ops.items():
+                
+                    if not values['active']:
+                        del self.threadops[board][thread]
+                    
+        except Exception as err:
+            self.dlog.excpt(err, msg=">>>in ThreadWatcher.remove_inactive_threads()", cn=self.__class__.__name__)
     
     def load(self):
         ''' Load user made posts from database and inserts it into self.threadops '''
@@ -92,31 +105,39 @@ class ThreadWatcher(object):
         
         
     def update(self):
-        ''' Refresh active threads in dictionary '''
+        ''' Refresh active threads in dictionary and marks inactive '''
         try:
             boardpad_list = self.wl.get_boardpad_list()
             
-            for board in self.threadops:
+            opcount = 0
+            for boardcount, board in enumerate(self.threadops, 1):
                 for op in self.threadops[board]:
                     
-                    # Only watch threads that are not opened in a BoardPad
+                    opcount += 1
+                    
+                    # Only watch threads that are not opened in a BoardPad except if cfg overrides it
+                    skip = False
                     for boardpad in boardpad_list:
-                        if op is boardpad.threadno and board is boardpad.board:
-                            self.dlog.msg("ThreadWatcher: Not watching opened thread: " + str(op))
-                            break
-                        
+                        if str(board) == str(boardpad.board) and str(op) == str(boardpad.threadno):
+                                self.dlog.msg("ThreadWatcher: Not watching opened thread: " + str(op), 4)
+                                if not self.wl.cfg.get('threadwatcher.skip_active_boards'):
+                                    skip = True
+                    
                     # If OP did not 404 or is active in window
-                    if self.threadops[board][op]['active']:
+                    if self.threadops[board][op]['active'] and not skip:
                         userposts = self.threadops[board][op]['userposts']
                         self.threadops[board][op]['active'] = self.query(board, op, userposts)
-                        self.dlog.msg("ThreadWatcher: Thread (post-query): " + str(op) + " now active: " + str(self.threadops[board][op]['active']))
-                            
-                    
-                    
-                    for userpost in self.threadops[board][op]['userposts']:
-                        self.dlog.msg("ThreadWatcher: Testing userpost: " + str(userpost) + " Active: " + str(self.threadops[board][op]['active']))
                         
+                    # Update DB if thread is not active
+                    if not self.threadops[board][op]['active']:
+                        self.db.set_inactive(board, op)
+                        continue
 
+                    
+            self.dlog.msg("ThreadWatcher: Watching " + str(opcount) + " thread(s) on " + str(boardcount) + " board(s)", 3)
+            
+            self.remove_inactive_threads()
+                        
         except Exception as err:
             self.dlog.excpt(err, msg=">>>in ThreadWatcher.update()", cn=self.__class__.__name__)
 
@@ -132,17 +153,28 @@ class ThreadWatcher(object):
             contentFetcher.sb = self.wl.sb
             if contentFetcher.get() == "cached":
                 contentFetcher.get()
-            
-            for userpost in userposts:
-                self.get_replies(contentFetcher.jsoncontent, board, op, userpost)
-                
-            return True
-        
+                    
         except HTTPError as err:
             self.dlog.excpt(err, logLevel=4, msg=">>>in ThreadWatcher.query()", cn=self.__class__.__name__)
             if err.response.status_code == 404:
                 return False
-
+            
+        except Exception as err:
+            self.dlog.excpt(err, msg=">>>in ThreadWatcher.query()", cn=self.__class__.__name__)
+            
+        try:
+            # Trigger marking archived posts as inactive
+            try:
+                if contentFetcher.jsoncontent['posts'][0]['archived']:
+                    return False
+            except KeyError:
+                pass
+            
+            for userpost in userposts:
+                self.get_replies(contentFetcher.jsoncontent, board, op, userpost)
+            
+            return True
+        
         except Exception as err:
             self.dlog.excpt(err, msg=">>>in ThreadWatcher.query()", cn=self.__class__.__name__)     
             
@@ -151,7 +183,8 @@ class ThreadWatcher(object):
             
             
     def get_replies(self, jsoncontent, board, op, userpost):
-        try:        
+        try:
+            
             # TODO for loop from DictOutput.create_sub(), might want to put this in an extra class
             for post in jsoncontent['posts']:
                 if (board, post['no']) in self.seen:

@@ -25,8 +25,6 @@ class ThreadFetcher(threading.Thread):
 		self.sb = self.bp.sb
 		self.tb = self.bp.tb
 				
-		#self.sb = Statusbar(self.stdscr, self.nickname, self.board, self.threadno)
-		#self.tb = Titlebar(self.stdscr)
 		self.tdict = {}
 		self.dictOutput = ""
 		self.update_n = 9

@@ -78,7 +78,7 @@ class Database(object):
             conn.commit()
             
             if c.rowcount:
-                self.dlog.msg("Database: Inserted " + str(values))
+                self.dlog.msg("Database: Inserted " + str(values), 3)
             else:
                 self.dlog.msg("Failure inserting values into DB: " + str(values))
                 
@@ -104,7 +104,7 @@ class Database(object):
             conn.commit()
             
             if c.rowcount:
-                self.dlog.msg("Database: Inserted " + str(values))
+                self.dlog.msg("Database: Inserted " + str(values), 3)
             else:
                 self.dlog.msg("Failure inserting values into DB: " + str(values))
             
@@ -145,12 +145,27 @@ class Database(object):
             
             rows = c.fetchall()
             return rows
-                
-                
-                
-            
+        
         except Exception as err:
             self.dlog.excpt(err, msg=">>>in Database.get_active()", cn=self.__class__.__name__)
+                
+                
+    def set_inactive(self, board, op_no):
+        try:
+            if not self.enabled:
+                return
+        
+            param = [board, op_no,]
+            conn = sqlite3.connect(self.dbfile)  # @UndefinedVariable
+            c = conn.cursor()
+            c.execute('''UPDATE yottu_posts SET active = 0 WHERE board = ? AND threadno = ?''', param)
+            conn.commit()
+            c.close()
+            return c.rowcount 
+            
+        except Exception as err:
+            self.dlog.excpt(err, msg=">>>in Database.set_inactive()", cn=self.__class__.__name__)
+            
         
     
     

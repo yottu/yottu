@@ -16,8 +16,6 @@ class CatalogOutput(object):
 		self.search = search
 		self.tdict = {}
 		self.result_postno = [] # list of OPs containing search term
-		self.initial_run = True
-		
 		
 	def refresh(self, json):
 		self.catalog = json
@@ -110,11 +108,6 @@ class CatalogOutput(object):
 
 				self.cp.addstr("\n")
 			
-			if self.initial_run: 
-				self.cp.addstr("\n---- Page: " + page + "\n\n")
-
-		self.initial_run = False
-		
 		curses.doupdate()  # @UndefinedVariable
 
 		return self.result_postno	

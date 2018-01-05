@@ -37,6 +37,7 @@ w 		- 	scroll up (Alt: Cursor up)
 s 		- 	scroll down (Alt: Curser down)
 r		-	refresh thread
 D		-	download all images
+Alt+c		-	Open in browser (/set app.browser)
 Alt+q 		-	quit
 x		-	close window
 p, n 		- 	previous/next window
@@ -54,6 +55,13 @@ Curser Up/Down 	- Cycle through command/text mode history
 autojoin 		- list threads to join on program start
 	autojoin save 	- save current threads in autojoin list
 	autojoin clear	- removes all thread from autojoin list
+
+find <re>		- search for regular expression in thread  
+
+mpv	<source>	- play video from source with comments from current board as subtitles
+playall			- play all youtube videos in thread (mpv)
+twitch <channel>	- stream from twitch channel (mpv)
+youtube <source>	- play video from youtube (mpv)
 	
 set 				- lists options saved in ~/.config/yottu/config
 	set default_context 	- board context on program start

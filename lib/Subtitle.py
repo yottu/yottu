@@ -20,8 +20,7 @@ class Subtitle(object):
         self.subfile_lasttime = None # Time last sub got displayed
         self.subfile_count = 0 # Number of comments in live subfile
         
-    # TODO this might need its own class
-    def create_sub(self, postno, tdict):
+    def create_sub(self, postno=0, tdict={}):
         '''
             create an .ass subfile for overlaying comments generated 
             from a thread dictionary over a mpv playable source
@@ -76,7 +75,7 @@ class Subtitle(object):
             else:
                 return False
         except Exception as e:
-            self.dlog.excpt(e, msg=">>>in DictOutput.create_sub()", cn=self.__class__.__name__)
+            self.dlog.excpt(e, msg=">>>in Subtitle.create_sub()", cn=self.__class__.__name__)
             raise
         
         return True
@@ -84,6 +83,8 @@ class Subtitle(object):
 
     def subfile_append(self, com):
         ''' Output comment to subfile when streaming a video '''
+        
+        # TODO turn-over file after n subtitles have been displayed since it's causing more flickering on reload 
         try:
             if self.append_to_subfile:
                 

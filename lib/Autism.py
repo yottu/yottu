@@ -144,7 +144,7 @@ class Autism:
 				
 				# blank
 				if self.sb:
-					self.sb.setStatus(str(content_length/1024) + "K (100%)")
+					self.sb.setStatus(" " + source.upper() + "-GET: " + str(content_length/1024) + "K (100%)")
 
 				return content
 			

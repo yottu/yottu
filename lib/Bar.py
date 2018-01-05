@@ -9,13 +9,28 @@ class Bar(object):
     classdocs
     '''
     
-    def __init__(self, stdscr, wl):
+    def __init__(self, stdscr, wl, pad):
         self.stdscr = stdscr
         self.wl = wl
+        self.pad = pad # Pad that instantiated Bar object
         
         self.dlog = wl.dlog
         
         self.screensize_y, self.screensize_x = stdscr.getmaxyx()
+        
+        self._active = False
+        
+        
+    def active(self):
+        self._active = True
+        self.draw()
+        
+    def inactive(self):
+        self._active = False
+        
+    def draw(self):
+        if not self._active:
+            return
         
     def on_resize(self):
         self.screensize_y, self.screensize_x = self.stdscr.getmaxyx()
