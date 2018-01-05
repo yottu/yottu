@@ -8,6 +8,8 @@ from __future__ import division
 import curses
 import unicodedata
 import re
+import thread
+
 from Titlebar import Titlebar
 from Statusbar import Statusbar
 
@@ -19,6 +21,8 @@ class Pad(object):
 		self.stdscr = stdscr
 		self.wl = wl # WindowLogic
 		self.cfg = self.wl.cfg
+		
+		self.lock = thread.allocate_lock()  # Used for concurrent writing by multiple threads
 		
 		self.screensize_y, self.screensize_x = self.stdscr.getmaxyx();
 		height = self.screensize_y-Pad.reservedscreen
@@ -37,8 +41,8 @@ class Pad(object):
 		(self.pmaxy, self.pmaxx) = self.mypad.getmaxyx()
 		self.actualpmaxy = self.pmaxy-Pad.padbuffersize
 		
-		self.tb = Titlebar(self.stdscr, self.wl)
-		self.sb = Statusbar(self.stdscr, self.wl, nickname="(<Pad>)")
+		self.tb = Titlebar(self.stdscr, self.wl, self)
+		self.sb = Statusbar(self.stdscr, self.wl, self, nickname="(<Pad>)")
 		
 		self.dlog = self.wl.dlog #DebugLog("debug.log")
 		
@@ -93,14 +97,17 @@ class Pad(object):
 		
 	def active(self):
 		self._active = True
+		self.stdscr.clear()
 		
 		try:
+			
 			if self.autoScroll and self.__position is self.size:
 				self.clear_unread_window_elements()
-			self.wl.sb = self.sb
-			self.sb.draw()
-			self.tb.draw()
+				
+			self.sb.active()	
+			self.tb.active()
 			self.draw()
+
 		except Exception as e:
 			self.dlog.excpt(e, msg=">>>in Pad.active()", cn=self.__class__.__name__)	
 	
@@ -119,6 +126,8 @@ class Pad(object):
 		
 	def inactive(self):
 		self._active = False
+		self.sb.inactive()
+		self.tb.inactive()
 		
 	def on_resize(self):
 		try:
@@ -142,6 +151,9 @@ class Pad(object):
 	def addstr(self, string, options=curses.A_NORMAL, indent=0, mentioned=False):  # @UndefinedVariable
 		try:
 			
+			# wait until other threads have finished writing
+			self.lock.acquire_lock()
+
 			# check if comment needs to be line wrapped, indent it if so
 			if indent:
 				
@@ -194,7 +206,9 @@ class Pad(object):
 			if str(err) == "addstr() returned ERR":
 				self.dlog.msg("Pad full. Reinitializing..")
 				self.mypad = curses.newpad(self.pheight+Pad.padbuffersize, self.pwidth)  # @UndefinedVariable
-			
+		finally:
+			self.lock.release_lock()
+
 		# Increase unread line counter on inactive windows
 		if re.search(r'\n', string):
 			if not self._active or not self.autoScroll:

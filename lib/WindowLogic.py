@@ -25,6 +25,7 @@ class WindowLogic(object):
 
 	def __init__(self, stdscr):
 		
+		self.curses = curses
 		self.stdscr = stdscr
 		curses.use_default_colors() # @UndefinedVariable
 		# assign color to post number, pairs 1-10 are reserved
@@ -53,7 +54,7 @@ class WindowLogic(object):
 			self.windowList = [] # Array of all window objects (i.e. Pads)
 			self.windowListProperties =  {} # Associating a window object with its properties
 
-			self.ci = None
+			self.ci = None # Set by CommandInterpreter.__init__()
 
 			self.compad = CommandPad(stdscr, self)
 			self.msgpad = MessagePad(stdscr, self)
@@ -224,6 +225,7 @@ class WindowLogic(object):
 			if len(self.windowList) > num >= 0:
 				self.set_active_window(num)
 				self.windowList[self.get_active_window()].draw()
+				self.ci.draw_cmdinput()
 		except Exception as e:
 			self.dlog.excpt(e, msg=">>>in WindowLogic.raise_window()")
 	

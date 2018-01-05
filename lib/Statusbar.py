@@ -6,10 +6,9 @@ from Bar import Bar
 
 class Statusbar(Bar):
 
-	def __init__(self, stdscr, wl, nickname="", board="", threadno=""):
-		super(Statusbar, self).__init__(stdscr, wl)
+	def __init__(self, stdscr, wl, pad, nickname="", board="", threadno=""):
+		super(Statusbar, self).__init__(stdscr, wl, pad)
 		
-		self.stdscr = stdscr
 		self.sb_status = ""
 		self.sb_blank = 0
 		self.sb_windowno = "X"
@@ -76,6 +75,8 @@ class Statusbar(Bar):
 			self.sb_blank = 0
 			
 	def draw(self, update_n="", wait_n=""):
+		if not self._active:
+			return
 				
 		try:
 			self.stdscr.noutrefresh()
@@ -139,15 +140,23 @@ class Statusbar(Bar):
 		except Exception as err:
 			self.dlog.excpt(err, msg=">>>in Statusbar.draw()", cn=self.__class__.__name__)
 			#self.wl.ci.clinepos = 4
-			raise
 		
 
 		return
 	
 	def setStatus(self, status):
 		''' sets Status text located right most before n_update '''
-		self.sb_status = status[:self.sb_blank-1]
-		self.draw()
+		
+		# uses locks to make it thread safe
+		try:
+			self.sb_status = status[:self.sb_blank-1]
+			self.pad.lock.acquire_lock()
+			self.draw()
+		except Exception as err:
+			self.dlog.excpt(err, msg=">>>in Statusbar.setStatus()", cn=self.__class__.__name__)
+		finally:
+			self.pad.lock.release_lock()
+		
 		
 		
 	nickname = property(get_nickname, set_nickname, None, None)

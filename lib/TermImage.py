@@ -6,12 +6,19 @@ Created on May 15, 2017
 from subprocess import call
 import subprocess
 import os
+from threading import Thread
+import threading
 
 
-class TermImage(object):
-    '''
-    classdocs
-    '''
+class TermImage(threading.Thread):
+    def __init__(self):
+        Thread.__init__(self)
+
+    def stream(self, bp, irc, source, subfile, subfile2=False):
+        TermImage.display_webm(source, stream=True, wait=True, fullscreen=True, path="", subfile=subfile, subfile2=subfile2)
+        irc.stop()
+        bp.subtitle.append_to_subfile = False
+
     
     @staticmethod
     def run_w3mimgdisplay(w3m_args):
@@ -95,7 +102,7 @@ class TermImage(object):
             raise
         
     @staticmethod        
-    def display_webm(filename, fullscreen=False, path="./", subfile=False, wait=True, stream=False, **unused):
+    def display_webm(filename, fullscreen=False, path="./", subfile=False, subfile2=False, wait=True, stream=False, **unused):
         ''' Returns: (stdoutdata, stderrdata)'''
         
         # The local directory path when streaming from an URL is not needed
@@ -111,6 +118,8 @@ class TermImage(object):
                 
             if subfile:
                 options.append('--sub-file=' + str(subfile))
+            if subfile2: # FIXME use a list
+                options.append('--sub-file=' + str(subfile2))
                 
             if stream:
                 # lua script to continuously re-read the subfile

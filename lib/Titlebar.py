@@ -4,8 +4,8 @@ import curses
 
 
 class Titlebar(Bar):
-	def __init__(self, stdscr, wl):
-		super(Titlebar, self).__init__(stdscr, wl)
+	def __init__(self, stdscr, wl, pad):
+		super(Titlebar, self).__init__(stdscr, wl, pad)
 		self.screensize_y, self.screensize_x = stdscr.getmaxyx()
 		self.sb_blank = 1
 		
@@ -18,13 +18,11 @@ class Titlebar(Bar):
 		self.imagelimit = 0 # 1 if True
 		self.unique_ips_changed = False
 		
-		
-
-		
-		self.set_title(u"yottu v0.4 - https://github.com/yottu/yottu".encode('utf-8')
-		)
+		self.set_title(u"yottu v0.4 - https://github.com/yottu/yottu".encode('utf-8'))
 		
 	def draw(self):
+		super(Titlebar, self).draw()
+		
 		try:
 			self.screensize_y, self.screensize_x = self.stdscr.getmaxyx()
 			self.calc_blank()

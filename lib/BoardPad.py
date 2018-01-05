@@ -11,6 +11,8 @@ from PostReply import PostReply
 from TermImage import TermImage
 from Autism import Autism
 from Subtitle import Subtitle
+from RelayChat import RelayChat
+import re
 
 class BoardPad(Pad):
 	'''
@@ -20,6 +22,7 @@ class BoardPad(Pad):
 		super(BoardPad, self).__init__(stdscr, wl)
 		self.board = ""
 		self.threadno = ""
+		self.url = "" # URL of thread
 		
 		self.db = wl.db
 		self.cfg = wl.cfg
@@ -131,6 +134,8 @@ class BoardPad(Pad):
 			self.set_nickname(nickname)
 			self.init_cooldowns()
 			
+			self.url = "https://boards.4chan.org/" + str(self.board) + "/thread/" + str(self.threadno)
+			
 			self.sb.set_board(self.board)
 			self.sb.set_threadno(self.threadno)
 			
@@ -221,7 +226,6 @@ class BoardPad(Pad):
 	def show_image_thumb(self, postno):
 		self.show_image(postno, ext=False, thumb=True)
 		
-		
 	def show_image(self, postno, ext=False, fullscreen=False, thumb=False, setbg=False):
 		try:
 			postno = int(postno)
@@ -296,32 +300,65 @@ class BoardPad(Pad):
 					
 		except Exception as err:
 			self.dlog.excpt(err, msg=">>>in play_all_videos()", cn=self.__class__.__name__)
+	
+	def twitch_stream(self, channel):
+		try:
 			
-	def video_stream(self, source, site=None):
+			source = "https://twitch.tv/" + channel
+			
+			twitch_nick = self.cfg.get('video.twitch.nick')
+			twitch_oauth = self.cfg.get('video.twitch.oauth')
+			twitch_subfile = self.cfg.get('file.video.directory') \
+						+ self.cfg.get('file.video.twitch.subfile')
+			twitch_host = self.cfg.get('video.twitch.irc_host')
+			twitch_port = self.cfg.get('video.twitch.irc_port')
+			
+			sub = Subtitle(twitch_subfile, self.dlog, stream=True)
+			sub.create_sub()
+			
+			irc = RelayChat(twitch_host, twitch_port, twitch_nick, twitch_oauth, "#" + channel, sub, self.dlog)
+			thread.start_new_thread(irc.connect, ())
+			
+			subfile = self.cfg.get('file.video.directory') + self.cfg.get('file.video.subfile')
+			self.subtitle = Subtitle(subfile, self.dlog, stream=True)
+			self.subtitle.append_to_subfile = True
+			self.subtitle.create_sub(postno=self.threadFetcher.dictOutput.originalpost['no'], tdict=self.tdict)
+			
+			termimg = TermImage()
+			thread.start_new_thread(termimg.stream, (self, irc, source, twitch_subfile, subfile))
+		except Exception as err:
+			self.dlog.excpt(err, msg=">>>in BoardPad.twitch_stream()", cn=self.__class__.__name__)
+		
+	
+	def video_stream(self, source, site=None, wait=False):
 		'''
 		Stream video from an URL 
 		'''
 		
 		if site == "twitch":
-			source = "https://twitch.tv/" + source.split("/").pop()
+			
+			twitch_channel = source.split("/").pop()
+			self.twitch_stream(twitch_channel)
+			return
+			
 		elif site == "youtube":
 			source = "https://youtube.com/?v=" + source.split("v=").pop()
 		
 		try:
-			# Testing TODO clean up
 			file_path = self.cfg.get('file.video.directory')
-			subfile = file_path + self.cfg.get('file.video.subfile')
+			subfile =  file_path + self.cfg.get('file.video.subfile')
 			self.subtitle = Subtitle(subfile, self.dlog, stream=True)
 				
 			
 			self.subtitle.append_to_subfile = True
 			if self.subtitle.create_sub(postno=self.threadFetcher.dictOutput.originalpost['no'], tdict=self.tdict):
 				self.dlog.msg("Streaming from source " + source)
-				TermImage.display_webm(source, stream=True, wait=False, fullscreen=True, path=file_path, subfile=subfile)
+				
+				TermImage.display_webm(source, stream=True, wait=wait, fullscreen=True, path=file_path, subfile=subfile)
 				
 			else:
 				raise RuntimeError("Could not create subtitle file: " + str(subfile))
-				TermImage.display_webm(source, stream=True, wait=False, fullscreen=True, path=file_path)
+				TermImage.display_webm(source, stream=True, wait=wait, fullscreen=True, path=file_path)
 
 				
 				
@@ -361,6 +398,8 @@ class BoardPad(Pad):
 				# FIXME too many parallel downloads
 				thread.start_new_thread(self.threadFetcher.save_image, (img_tim, img_ext, orig_filename))
 				
+
+				
 		except (KeyError, TypeError) as err:
 			self.dlog.excpt(err, msg=">>>in BoardPad.download_images()")
 			pass
@@ -368,9 +407,50 @@ class BoardPad(Pad):
 			self.dlog.excpt(err, msg=">>>in BoardPad.download_images()")
 			pass
 		
+	def search_string_instances(self, search_string):
+		''' return list of tuples (whole comment, [matches]) in a tdict containing search string '''
+		
+		com_match_list = []
+		try:
+			for post in self.tdict.values():
+				com = post['com'].encode('utf-8')
+
+				try:
+					matched = re.findall(search_string, com)
+				except:
+					pass
 				
+				
+				if matched:
+					self.dlog.msg("--DEBUG: " + str(search_string) + " in " + str(com) + ": " + str(matched))
+					com_match_list.append((com, matched))
+				
+			return com_match_list
+		except Exception as err:
+			self.dlog.excpt(err, msg=">>>in BoardPad.search_string_instances()", cn=self.__class__.__name__)
 	
+	def search_mp_out(self, search_string):
+		
+		try:
+			search_string = search_string.encode('utf-8')
+			
+			result = self.search_string_instances(search_string)
+			if result:
+				for i, match in enumerate(result, 1):
+					self.wl.msgpadout(search_string + " (" + str(i) + "): " + str(match[0]))
+				
+		except Exception as err:
+			self.dlog.excpt(err, msg=">>>in BoardPad.search_mp_out()", cn=self.__class__.__name__)
+			
+	def youtube_play_all(self):
+		results = self.search_string_instances("youtube.com/\S+")
+		results += self.search_string_instances("youtu.be/\w+")
+		
+		for sources in results:
+			self.dlog.msg("--DEBUG: Trying to stream from list " + str(sources[1]))
+			for source in sources[1]:
+				self.video_stream(source, site="youtube", wait=True)
+		
+
 	tdict = property(get_tdict, set_tdict, None, None)
 	post_comment = property(get_comment, set_comment, None, None)
-		
-	

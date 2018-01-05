@@ -69,9 +69,13 @@ class DictOutput(object):
 			try: 
 				self.originalpost.update({'replies': self.thread['posts'][0]['replies']})
 				self.originalpost.update({'images': self.thread['posts'][0]['images']})
-				self.originalpost.update({'unique_ips': self.thread['posts'][0]['unique_ips']})
 				self.originalpost.update({'bumplimit': self.thread['posts'][0]['bumplimit']})
 				self.originalpost.update({'imagelimit': self.thread['posts'][0]['imagelimit']})
+				
+				try:
+					self.originalpost.update({'archived': self.thread['posts'][0]['archived']})
+				except KeyError:
+					self.originalpost['archived'] = 0
 
 
 					
@@ -80,13 +84,19 @@ class DictOutput(object):
 				self.bp.tb.images = self.originalpost['images']
 				self.bp.tb.replies = self.originalpost['replies']
 				
-				if int(self.originalpost['unique_ips']) > int(self.bp.tb.unique_ips) and self.bp.tb.unique_ips != 0:
-					self.bp.tb.unique_ips_changed = True
-				else:
-					self.bp.tb.unique_ips_changed = False
+				try:
+					self.originalpost.update({'unique_ips': self.thread['posts'][0]['unique_ips']})
+					if int(self.originalpost['unique_ips']) > int(self.bp.tb.unique_ips) and self.bp.tb.unique_ips != 0:
+						self.bp.tb.unique_ips_changed = True
+					else:
+						self.bp.tb.unique_ips_changed = False
 					
 					
-				self.bp.tb.unique_ips = self.originalpost['unique_ips']
+					self.bp.tb.unique_ips = self.originalpost['unique_ips']
+
+				# Archived threads do not set unique_ips
+				except:
+					self.bp.tb.unique_ips = "?"
 					
 				
 			except Exception as e: 
@@ -187,7 +197,7 @@ class DictOutput(object):
 				marked = False
 				if self.comment_tbm_timeout > 0:
 					
-					self.dlog.msg("com: " + str(com) + " tbm: " + str(self.comment_tbm))
+					self.dlog.msg("comment wrote: " + str(com) + " comment to be matched: " + str(self.comment_tbm), 4)
 					# TODO regex match with n percentage accuracy should work better
 					if com == self.comment_tbm:
 						marked = True
@@ -378,6 +388,10 @@ class DictOutput(object):
 		except Exception as e:
 			self.dlog.excpt(e, msg=">>>in DictOutput.refresh() ->refetch", cn=self.__class__.__name__)
 	
+		if self.originalpost['archived']:
+			self.bp.threadFetcher.stop()
+			self.bp.sb.setStatus("ARCHIVED")
+			
 		curses.doupdate()  # @UndefinedVariable
 
 	

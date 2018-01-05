@@ -9,6 +9,7 @@ import curses
 import threading
 from DebugLog import DebugLog
 from BoardPad import BoardPad
+from TermImage import TermImage
 import re
 import json
 from urllib2 import HTTPError
@@ -152,7 +153,13 @@ class CommandInterpreter(threading.Thread):
 					self.wl.join_thread(board, thread)
 		except Exception:
 			pass
-		
+	
+	
+	def is_boardpad(self):
+		active_window = self.wl.get_active_window_ref()
+		if not isinstance(active_window, BoardPad):
+			return False
+		return True
 		
 	def setting_list(self, key):
 		try:
@@ -169,23 +176,34 @@ class CommandInterpreter(threading.Thread):
 			self.screensize_y, self.screensize_x = self.stdscr.getmaxyx();
 			
 			self.wl.on_resize()
-	
+			self.draw_cmdinput()
+
+		except Exception as err:
+			self.dlog.msg("CommandInterpreter.on_resize(): " + str(err))
+
+	def clear_cmdinput(self, status_char="^"):
+		cmd_text = "[" + status_char + "] "
+		self.stdscr.move(self.screensize_y-1, 0)
+		self.stdscr.clrtoeol()
+		self.stdscr.addstr(cmd_text)
+		self.clinepos = len(cmd_text)
+		
+	def draw_cmdinput(self):
+		try:
 			self.stdscr.move(self.screensize_y-1, 0)
 			self.stdscr.clrtoeol()
 			if self.command != "":
 				if self.tmode:
-					self.stdscr.addstr(self.screensize_y-1, 0, "[>] " + self.command[4:])
+					self.stdscr.addstr(self.screensize_y-1, 0, "[>] ")
 				elif self.cmode:
-					self.stdscr.addstr(self.screensize_y-1, 0, "[/] " + self.command)
+					self.stdscr.addstr(self.screensize_y-1, 0, "[/] ")
 			else:
 				self.stdscr.addstr(self.screensize_y-1, 0, self.cmd_prefix)
 			self.stdscr.move(self.screensize_y-1, self.clinepos)
+			
+			self.refresh_cmd_page()
 		except Exception as err:
-			self.dlog.msg("CommandInterpreter.on_resize(): " + str(err))
-
-		
-
-		
+			self.dlog.excpt(err, msg=">>>in CommandInterpreter.draw_cmdinput()", cn=self.__class__.__name__)
 
 		
 	def parse_param(self, string):
@@ -238,14 +256,6 @@ class CommandInterpreter(threading.Thread):
 		self.clear_cmdinput("c")
 		self.cmode = True
 		self.cstrout("captcha ")
-
-	def clear_cmdinput(self, status_char="^"):
-		cmd_text = "[" + status_char + "] "
-		self.stdscr.move(self.screensize_y-1, 0)
-		self.stdscr.clrtoeol()
-		self.stdscr.addstr(cmd_text)
-		self.clinepos = len(cmd_text)
-
 
 	def attach_file(self):
 		''' start ranger to select filename '''
@@ -747,6 +757,13 @@ class CommandInterpreter(threading.Thread):
 				self.dlog.msg("Autoloading..")
 				self.readconfig()
 				
+		elif re.match("find", self.command):
+			if self.is_boardpad():
+				self.wl.get_active_window_ref().search_mp_out(cmd_args.pop(1))
+			else:
+				self.dlog.msg("/find currently only works in threads.")
+				return
+				
 		elif re.match("mpv", self.command) \
 		  or re.match("twitch", self.command) \
 		  or re.match("youtube", self.command):
@@ -765,6 +782,10 @@ class CommandInterpreter(threading.Thread):
 				return
 			
 			active_window.video_stream(mpv_source, site=site)
+		
+		elif re.match("playall", self.command):
+			if self.is_boardpad():
+				self.wl.get_active_window_ref().youtube_play_all()
 			
 		elif re.match("nick", self.command):
 			cmd_args.pop(0)
@@ -1224,11 +1245,11 @@ class CommandInterpreter(threading.Thread):
 							           or (keyname and re.match("^\^\S$", keyname)) \
 							           or re.match("^\^\S", inputstr):
 								if alt_key:
-									self.dlog.msg("Unbound key (Alt): ^[" + str(alt_key) )
+									self.dlog.msg("Unbound key (Alt): ^[" + str(alt_key), 4)
 								elif keyname:
-									self.dlog.msg("Unbound key (Ctrl): " + keyname)
+									self.dlog.msg("Unbound key (Ctrl): " + keyname, 4)
 								else:
-									self.dlog.msg("Unbound key (ncurses): " + c)
+									self.dlog.msg("Unbound key (ncurses): " + c, 4)
 								continue
 							
 
@@ -1237,7 +1258,7 @@ class CommandInterpreter(threading.Thread):
 								self.cout(c)
 								
 							elif ord(inputstr[0]) == 27:
-								raise ValueError("Unknown Escape sequence: " + str(inputstr))
+								raise ValueError("Unknown Escape sequence: " + str(inputstr), 2)
 								
 							else:
 								self.cstrout(inputstr)
@@ -1336,6 +1357,17 @@ class CommandInterpreter(threading.Thread):
 					if alt_key == 'q':
 						self.terminate = 1
 						
+					elif alt_key == 'c':
+						if self.is_boardpad():
+							try:
+								app_browser = self.cfg.get('app.browser').split(" ")
+								url = self.wl.get_active_window_ref().url
+								app_browser.append(url)
+								TermImage.exec_cmd(app_browser)
+							except Exception as err:
+								self.dlog.warn(err, msg=">>>in CommandInterpreter.run()", cn=self.__class__.__name__)
+								self.wl.compadout("Failed to launch app.browser")
+						
 					elif alt_key == 'F':
 						thread.start_new_thread(self.wl.get_active_window_ref().play_all_videos, ())
 						
@@ -1343,7 +1375,7 @@ class CommandInterpreter(threading.Thread):
 						continue
 				
 				else:
-					self.dlog.msg("Unbound key: " + str(c))
+					self.dlog.msg("Unbound key: " + str(c), 4)
 					continue
 				
 		except (TypeError, UnicodeDecodeError) as err:

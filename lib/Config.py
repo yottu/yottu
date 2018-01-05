@@ -56,6 +56,7 @@ class Config(object):
 	def defaults(self):
 		''' returns dict with default settings '''
 		return {
+			'app.browser' : '/usr/bin/chromium --incognito', # Application to use for opening links
 			'autojoin_threads' : '',
 			'board.default': 'g', #  
 			'catalog.cache.maxage': '1800', # Cached catalog's maximum age  
@@ -68,8 +69,9 @@ class Config(object):
 			'proxy.socks.enable': 'False', # 
 			'proxy.socks.port': '9050', #   
 			'threadwatcher.enable': 'True', # 
+			'threadwatcher.skip_active_boards': 'False', #
 			'threadwatcher.update.interval': 300, #
-			'user.options': '', #  
+			'user.options': '',  # 
 			'user.name': '', #
 			'user.tripcode' : '', # 
 			'file.catalog.directory': './cache/catalogs/', #
@@ -81,10 +83,15 @@ class Config(object):
 			'file.video.autodownload': 'False', #  
 			'file.video.directory': './cache/videos/', # 
 			'file.video.subfile': 'subfile.ass', #
+			'file.video.twitch.subfile': 'subfile.ass', #
 			'filter.except.list': '', # "[ {'filter': {'country': ['DE']}, 'pattern':[]}, {'filter': {'country': ['JP']}, 'pattern':[] } ]", #
 			'filter.ignore.list': '', # "[{'filter': {'name': 'Anonymous', 'country': ['DE', 'FR']}, 'pattern':['Japanese', 'OP']}]", #     
 			'log.file.location': './debug.log', # 
 			'log.level': '3', # 0 (Nothing) - 5 (Everything)
+			'video.twitch.irc_host': 'irc.twitch.tv', # 
+			'video.twitch.irc_port': '6667', # TODO look into secure connection
+			'video.twitch.nick': '', # twitch nick (lower case?)
+			'video.twitch.oauth': '', # Copy/Paste from https://twitchapps.com/tmi/  
 			'window.board.autofocus': 'True', # Focus board window on new messages
 			'window.catalog.autofocus': 'False', # Focus catalog window on new messages
 			'window.command.autofocus': 'False', # Focus command window on new messages
