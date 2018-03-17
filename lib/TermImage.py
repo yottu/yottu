@@ -8,6 +8,7 @@ import subprocess
 import os
 from threading import Thread
 import threading
+from PIL import Image, ImageDraw
 
 
 class TermImage(threading.Thread):
@@ -33,6 +34,29 @@ class TermImage(threading.Thread):
             return output
         except:
             raise
+
+    # Split image and resave        
+    @staticmethod
+    def image_split_h(image_filename):
+        with Image.open(image_filename) as image:
+            (image_x, image_y) = image.size
+            image_top = image.copy().crop((0, 0, image_x, image_y/3))
+            image_center = image.copy().crop((0, image_y/3, image_x, image_y/3*2))
+            image_bottom = image.copy().crop((0, image_y/3*2, image_x, image_y))
+        
+        
+        # Draw rectangle around center image
+        draw_center = ImageDraw.Draw(image_center)
+        draw_center.rectangle([0, 0, image_x-1, image_y/3-1], outline=(255,127,0))
+        
+        image_horiz = Image.new('RGB', (image_y*3, image_x/3))
+        image_horiz.paste(image_top)
+        image_horiz.paste(image_center, (image_x, 0))
+        image_horiz.paste(image_bottom, (image_x*2, 0))
+
+
+        image_horiz.save(image_filename)
+        
     
     @staticmethod
     def exec_cmd(full_cmd):

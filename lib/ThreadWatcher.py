@@ -21,6 +21,7 @@ class ThreadWatcher(object):
         self.wl = wl
         self.dlog = self.wl.dlog
         self.db = self.wl.db
+        self.cfg = self.wl.cfg
         
         # Dict of containing board, OP of thread and the posts made in that thread to watch for replies
         # Structure: {'board': {threadop: {'userposts': {123, 124}, 'active': True}} } to watch 
@@ -31,9 +32,16 @@ class ThreadWatcher(object):
         self.update_interval_max = 1800
         self.update_interval_min = 30
         
+        self.cfg.register(self)
+        
+    def on_config_change(self, *args, **kwargs):
+        self.load()
         
     def insert(self, board, userpost, threadop=None):
         ''' Add new thread to watch '''
+        
+        if not self.cfg.get('threadwatcher.enable'):
+            return False
         
         try:
             # userpost is new thread
@@ -62,6 +70,9 @@ class ThreadWatcher(object):
     def remove(self, board, userpost, threadop=None):
         ''' Remove a post from the watch list '''
         
+        if not self.cfg.get('threadwatcher.enable'):
+            return False
+        
         # userpost is op
         if not threadop:
             threadop = userpost
@@ -82,6 +93,9 @@ class ThreadWatcher(object):
     def remove_inactive_threads(self):
         ''' Remove all marked as inactive threads from the watch list '''
         
+        if not self.cfg.get('threadwatcher.enable'):
+            return False
+        
         try:
             for board, ops in self.threadops.items():
                 for thread, values in ops.items():
@@ -95,6 +109,9 @@ class ThreadWatcher(object):
     def load(self):
         ''' Load user made posts from database and inserts it into self.threadops '''
         
+        if not self.cfg.get('threadwatcher.enable'):
+            return False
+        
         try:
             for db_board_userpost_threadop in self.db.get_active():
                 self.dlog.msg("Loading tuple " + str(db_board_userpost_threadop) + " into ThreadWatcher")
@@ -106,14 +123,23 @@ class ThreadWatcher(object):
         
     def update(self):
         ''' Refresh active threads in dictionary and marks inactive '''
+        
+        if not self.cfg.get('threadwatcher.enable'):
+            return False
+        
         try:
             boardpad_list = self.wl.get_boardpad_list()
             
             opcount = 0
-            for boardcount, board in enumerate(self.threadops, 1):
+            boardcount = 0
+            for board in self.threadops:
+                
+                opcount_changed = False
+                
                 for op in self.threadops[board]:
                     
                     opcount += 1
+                    opcount_changed = True
                     
                     # Only watch threads that are not opened in a BoardPad except if cfg overrides it
                     skip = False
@@ -132,9 +158,18 @@ class ThreadWatcher(object):
                     if not self.threadops[board][op]['active']:
                         self.db.set_inactive(board, op)
                         continue
+                else:
+                    # Only count boards containing at least one user made post
+                    if opcount_changed:
+                        boardcount += 1
 
+            if opcount == 1: opcstr = "one thread"
+            else: opcstr = str(opcount) + " threads"
+            
+            if boardcount == 1: bcstr = "one board"
+            else: bcstr = str(boardcount) + " boards"
                     
-            self.dlog.msg("ThreadWatcher: Watching " + str(opcount) + " thread(s) on " + str(boardcount) + " board(s)", 3)
+            self.dlog.msg("ThreadWatcher: Watching " + opcstr + " on " + bcstr, 3)
             
             self.remove_inactive_threads()
                         

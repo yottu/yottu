@@ -58,7 +58,9 @@ class Config(object):
 		return {
 			'app.browser' : '/usr/bin/chromium --incognito', # Application to use for opening links
 			'autojoin_threads' : '',
-			'board.default': 'g', #  
+			'board.default': 'g', #
+			'board.postno.style': 'hybrid', # relative, absolute or hybrid
+			'captcha.version': '2', # 1 unsupported as of 01-2018
 			'catalog.cache.maxage': '1800', # Cached catalog's maximum age  
 			'catalog.update.time': '180',
 			'config.autoload': 'False', # Load settings after /save
@@ -68,6 +70,7 @@ class Config(object):
 			'proxy.socks.address': '127.0.0.1', # 
 			'proxy.socks.enable': 'False', # 
 			'proxy.socks.port': '9050', #   
+			'site.ssl': 'True', #
 			'threadwatcher.enable': 'True', # 
 			'threadwatcher.skip_active_boards': 'False', #
 			'threadwatcher.update.interval': 300, #

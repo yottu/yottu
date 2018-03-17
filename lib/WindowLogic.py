@@ -47,9 +47,7 @@ class WindowLogic(object):
 			self.db = Database(self)
 			
 
-			if self.cfg.get('threadwatcher.enable'):
-				self.dlog.msg("Starting ThreadWatcher")
-				self.tw = ThreadWatcher(self)
+			self.tw = ThreadWatcher(self)
 
 			self.windowList = [] # Array of all window objects (i.e. Pads)
 			self.windowListProperties =  {} # Associating a window object with its properties

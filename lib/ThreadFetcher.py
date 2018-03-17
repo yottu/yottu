@@ -20,7 +20,6 @@ class ThreadFetcher(threading.Thread):
 		self.dlog = self.bp.wl.dlog
 		self.nickname = nickname
 		self.contentFetcher = Autism(self.board, self.threadno)
-
 		
 		self.sb = self.bp.sb
 		self.tb = self.bp.tb
@@ -28,6 +27,8 @@ class ThreadFetcher(threading.Thread):
 		self.tdict = {}
 		self.dictOutput = ""
 		self.update_n = 9
+		self.runtime = 0 # iteration of while loop
+		self.refresh_pages = 60 # interval to refresh page thread is on
 		
 		Thread.__init__(self)
 		self._stop = threading.Event()
@@ -91,7 +92,6 @@ class ThreadFetcher(threading.Thread):
 				
 		
 		while True:
-			
 			self.dlog.msg("ThreadFetcher: Fetching for /" + self.board + "/" + self.threadno, 5)
 			
 			# leave update loop if stop is set
@@ -107,11 +107,12 @@ class ThreadFetcher(threading.Thread):
 				self.sb.setStatus('')
 				self.contentFetcher.sb = self.sb
 				self.contentFetcher.setstdscr(self.stdscr)
-				thread_state = self.contentFetcher.get()
-				thread = getattr(self.contentFetcher, "jsoncontent")
 				
+				pages = self.contentFetcher.fetch("threads")				
+				thread_state = self.contentFetcher.get()
+				thread = self.contentFetcher.jsoncontent
 					
-				self.dictOutput.refresh(thread)
+				self.dictOutput.refresh(thread, jsonpages=pages)
 				self.bp.set_tdict(self.dictOutput.get_tdict())
 				
 				self.bp.autofocus()
@@ -169,6 +170,17 @@ class ThreadFetcher(threading.Thread):
 				if self._update.is_set():
 					self._update.clear()
 					break
+				elif self.runtime%self.refresh_pages == 0:
+					
+				# Update page number thread is on
+					try:
+						jsonpages = self.contentFetcher.fetch("threads")
+						self.dictOutput.refresh_pages(jsonpages)
+						# Set title if window is active
+						if self._active:
+							self.tb.set_title(self.dictOutput.getTitle())
+					except Exception as e:
+						self.dlog.excpt(e, msg=">>>in ThreadFetcher.run() ->refresh.pages", cn=self.__class__.__name__)
 				
 				try:
 					if self._active:
@@ -182,6 +194,7 @@ class ThreadFetcher(threading.Thread):
 				
 
 				time.sleep(1)
+				self.runtime +=1
 				
 		# End of thread loop
 				

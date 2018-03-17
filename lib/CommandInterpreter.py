@@ -50,6 +50,7 @@ class CommandInterpreter(threading.Thread):
 		self.cmode = False # command mode
 		self.tmode = False # talking mode (no need to prefix /say)
 		self.captcha_mask = False # Query captcha input
+		self.captcha_challenge_text = "" # "Select all images with ducks."
 		
 		self.clinepos = 4      # Visual position of the cursor in the command line
 		self.cline_buffer = 4  # end of line buffer to wrap the text at when command line is filled
@@ -251,11 +252,28 @@ class CommandInterpreter(threading.Thread):
 # 			pass
 
 	def query_captcha(self):
-		self.command = ""
-		self.command_pos = 0
-		self.clear_cmdinput("c")
-		self.cmode = True
-		self.cstrout("captcha ")
+		# Display captcha challenge (text) and switch to command mode
+		
+		try:
+			self.command = ""
+			self.command_pos = 0
+			self.clear_cmdinput("c")
+			self.cmode = True
+			# self.cstrout(self.captcha_challenge_text.split()[-1][:-1] + ": ")
+			
+			self.cstrout('captcha ')
+			
+			# align right
+			
+			challenge_text = self.captcha_challenge_text.replace('Select all images with ', '(')[:-1] + ") "	
+			challenge_text = (self.screensize_x-5-len(challenge_text))*" " + challenge_text
+					
+			self.stdscr.addstr(self.screensize_y-1, 4, challenge_text[:self.screensize_x-5].encode('utf-8'), curses.A_BOLD )  # @UndefinedVariable
+
+			
+		except Exception as err:
+			self.dlog.excpt(err, msg=">>>in CommandInterpreter.query_captcha()", cn=self.__class__.__name__)
+		
 
 	def attach_file(self):
 		''' start ranger to select filename '''
@@ -548,6 +566,7 @@ class CommandInterpreter(threading.Thread):
 			try:
 				active_window.post_prepare(comment=comment, filename=self.filename[0], ranger=self.filename[1])
 				self.captcha_mask = True
+				self.captcha_challenge_text = active_window.postReply.captcha2_challenge_text
 			except Exception as err:
 				self.dlog.msg("CommandInterpreter: BoardPad.set_captcha(): " + str(err))
 
@@ -587,8 +606,19 @@ class CommandInterpreter(threading.Thread):
 			except PostReply.PostError as err:
 				#active_window.update_thread()
 				active_window.sb.setStatus(str(err))
+			
+			# Captcha probably wrong
+			except AttributeError as err:
+				active_window.sb.setStatus("Could not verify captcha.")
+				self.dlog.msg("Could not verify captcha: " + str(err))
+				
+			# Non-integers in captcha string
+			except ValueError as err:
+				self.dlog.msg("Can't submit captcha (only integers allowed): " + str(err))
+			
 			except Exception as err:
 				self.dlog.msg("Can't submit captcha: " + str(err))
+				self.dlog.excpt(err, msg=">>>in CommandInterpreter.exec_com()", cn=self.__class__.__name__)
 				
 				curses.ungetch('/')  # @UndefinedVariable
 				#self.cmode
@@ -830,8 +860,12 @@ class CommandInterpreter(threading.Thread):
 				arg = cmd_args.pop(1)
 				
 				if arg == "update":
-					self.wl.compadout("ThreadWatcher: Updating ..")
-					self.wl.tw.update()
+					if self.cfg.get('threadwatcher.enable'):
+						self.wl.compadout("ThreadWatcher: Updating ..")
+						self.wl.tw.update()
+					else:
+						self.wl.compadout("Threadwatcher is disabled.")
+						
 				
 			except IndexError:
 				self.wl.compadout("ThreadWatcher: -Not Implemented- /tw update to force update")
@@ -872,22 +906,27 @@ class CommandInterpreter(threading.Thread):
 	
 	# Toggle post as user's for easy (You)s 
 	def claim_post_toggle(self):
-		activeWindow = self.wl.get_active_window_ref()
-		
-		if self.postno_marked:
-			tdict_marked = activeWindow.tdict[int(self.postno_marked)]['marked']
+		try:
 			
-			if tdict_marked == False:
+			activeWindow = self.wl.get_active_window_ref()
+			
+			if self.postno_marked:
+				tdict_marked = activeWindow.tdict[int(self.postno_marked)]['marked']
 				
-				activeWindow.tdict[int(self.postno_marked)]['marked'] = True
-				self.wl.tw.insert(activeWindow.board, self.postno_marked, activeWindow.threadno)
-				self.wl.db.insert_post(activeWindow.board, activeWindow.threadno, self.postno_marked)
-				activeWindow.sb.setStatus("Post marked.")
-			else:
-				activeWindow.tdict[int(self.postno_marked)]['marked'] = False
-				self.wl.tw.remove(activeWindow.board, self.postno_marked, activeWindow.threadno)
-				self.wl.db.delete_post(activeWindow.board, self.postno_marked)
-				activeWindow.sb.setStatus("Post no longer marked.")
+				if tdict_marked == False:
+					
+					activeWindow.tdict[int(self.postno_marked)]['marked'] = True
+					self.wl.tw.insert(activeWindow.board, self.postno_marked, activeWindow.threadno)
+					self.wl.db.insert_post(activeWindow.board, activeWindow.threadno, self.postno_marked)
+					activeWindow.sb.setStatus("Post marked.")
+				else:
+					activeWindow.tdict[int(self.postno_marked)]['marked'] = False
+					self.wl.tw.remove(activeWindow.board, self.postno_marked, activeWindow.threadno)
+					self.wl.db.delete_post(activeWindow.board, self.postno_marked)
+					activeWindow.sb.setStatus("Post no longer marked.")
+		
+		except Exception as err:
+			self.dlog.excpt(err, msg=">>>in CommandInterpreter.claim_post_toggle()", cn=self.__class__.__name__)
 	
 	
 
@@ -1382,7 +1421,6 @@ class CommandInterpreter(threading.Thread):
 			self.dlog.excpt(err, msg=">>>in CommandInterpreter.run() (outer)")		
 		except Exception as err:
 			self.dlog.excpt(err, msg=">>>in CommandInterpreter.run() (outer)")
-			pass
 	# End of run loop
 	
 	def backspace(self, characters=-1):

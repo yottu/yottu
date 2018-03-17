@@ -164,38 +164,45 @@ class BoardPad(Pad):
 		
 	def get_captcha(self):
 		self.postReply.get_captcha_challenge()
+		self.sb.setStatus(self.postReply.captcha2_challenge_text)
 		self.display_captcha()
 			
 		
 	def set_captcha(self, captcha):
-		self.postReply.set_captcha_solution(captcha)
+		self.postReply.set_captcha2_solution(captcha)
 		
-	def post_submit(self):
+	def post_submit(self):		
+		try:
 		
-		if not self.post_filename and not self.post_comment:
-			raise ValueError("Either filename or comment must be set.")
-		
-		# TODO this timer is intra/interthread/board specific # FIXME timer values are not correct
-		wait = self.calc_post_wait_time()
-		
-		if wait > 0:
-			thread.start_new_thread(self.postReply.defer, (wait,), dict(nickname=self.nickname, 
-									comment=self.post_comment, subject=self.post_subject,
-									file_attach=self.post_filename, ranger=self.post_ranger))
-			response = ("deferred", wait)
+			if not self.post_filename and not self.post_comment:
+				raise ValueError("Either filename or comment must be set.")
 			
-		else:
-			response = self.postReply.post(nickname=self.nickname, comment=self.post_comment,
-										subject=self.post_subject, file_attach=self.post_filename,
-										ranger=self.post_ranger)
+			# TODO this timer is intra/interthread/board specific # FIXME timer values are not correct
+			wait = self.calc_post_wait_time()
 			
+			if wait > 0:
+				thread.start_new_thread(self.postReply.defer, (wait,), dict(nickname=self.nickname, 
+										comment=self.post_comment, subject=self.post_subject,
+										file_attach=self.post_filename, ranger=self.post_ranger))
+				response = ("deferred", wait)
+				
+			else:
+				response = self.postReply.post(nickname=self.nickname, comment=self.post_comment,
+											subject=self.post_subject, file_attach=self.post_filename,
+											ranger=self.post_ranger)
+				
+	
+			
+			self.post_filename = None
+			self.post_ranger = None
+			
+				
+			return response
+	
+		except Exception as err:
+			self.dlog.excpt(err, msg=">>>in BoardPad.post_submit()", cn=self.__class__.__name__)
+			raise
 
-		
-		self.post_filename = None
-		self.post_ranger = None
-		
-			
-		return response
 			
 	def post_success(self, time):
 		''' called after a post was made successfully on this BoardPad '''
@@ -301,30 +308,38 @@ class BoardPad(Pad):
 		except Exception as err:
 			self.dlog.excpt(err, msg=">>>in play_all_videos()", cn=self.__class__.__name__)
 	
+	# FIXME this doesn't require a boardpad, so it should be in the Pad class
 	def twitch_stream(self, channel):
 		try:
+			termimg = TermImage()
 			
 			source = "https://twitch.tv/" + channel
 			
 			twitch_nick = self.cfg.get('video.twitch.nick')
 			twitch_oauth = self.cfg.get('video.twitch.oauth')
-			twitch_subfile = self.cfg.get('file.video.directory') \
-						+ self.cfg.get('file.video.twitch.subfile')
+			twitch_subfile = None
 			twitch_host = self.cfg.get('video.twitch.irc_host')
 			twitch_port = self.cfg.get('video.twitch.irc_port')
 			
-			sub = Subtitle(twitch_subfile, self.dlog, stream=True)
-			sub.create_sub()
+			if not twitch_nick and not twitch_oauth:
+				self.wl.compadout("set twitch_nick and oauth to connect to twitch chat")
+				
 			
-			irc = RelayChat(twitch_host, twitch_port, twitch_nick, twitch_oauth, "#" + channel, sub, self.dlog)
-			thread.start_new_thread(irc.connect, ())
+			else:
+				twitch_subfile = self.cfg.get('file.video.directory') \
+							+ self.cfg.get('file.video.twitch.subfile')
+				sub = Subtitle(twitch_subfile, self.dlog, stream=True)
+				sub.create_sub()
+				
+				irc = RelayChat(twitch_host, twitch_port, twitch_nick, twitch_oauth, "#" + channel, sub, self.dlog)
+				thread.start_new_thread(irc.connect, ())
 			
-			subfile = self.cfg.get('file.video.directory') + self.cfg.get('file.video.subfile')
-			self.subtitle = Subtitle(subfile, self.dlog, stream=True)
-			self.subtitle.append_to_subfile = True
-			self.subtitle.create_sub(postno=self.threadFetcher.dictOutput.originalpost['no'], tdict=self.tdict)
+				subfile = self.cfg.get('file.video.directory') + self.cfg.get('file.video.subfile')
+				self.subtitle = Subtitle(subfile, self.dlog, stream=True)
+				self.subtitle.append_to_subfile = True
+				self.subtitle.create_sub(postno=self.threadFetcher.dictOutput.originalpost['no'], tdict=self.tdict)
 			
-			termimg = TermImage()
+			
 			thread.start_new_thread(termimg.stream, (self, irc, source, twitch_subfile, subfile))
 		except Exception as err:
 			self.dlog.excpt(err, msg=">>>in BoardPad.twitch_stream()", cn=self.__class__.__name__)

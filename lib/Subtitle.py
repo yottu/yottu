@@ -90,7 +90,8 @@ class Subtitle(object):
                 
                 with open(self.subfile, 'a',) as fh:
                     # FIXME replace hardcoded 5 with subtitle display duration
-                    xpos = str((self.subfile_count*100+20)%480)
+                    # FIXME replace hardcoded resolution
+                    xpos = str((self.subfile_count*100+20)%720)
                     
                     # ceil of comment length divided by 50 # FIXME hard coded 50
                     for i in range(0, -(-len(com))//50+1):

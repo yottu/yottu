@@ -16,6 +16,7 @@ class Titlebar(Bar):
 		self.unique_ips = 0
 		self.bumplimit = 0 # 1 if True
 		self.imagelimit = 0 # 1 if True
+		self.page = 0
 		self.unique_ips_changed = False
 		
 		self.set_title(u"yottu v0.4 - https://github.com/yottu/yottu".encode('utf-8'))
@@ -47,14 +48,15 @@ class Titlebar(Bar):
 			
 			replies = str(self.replies) + "R "
 			images = str(self.images) + "I "
-			unique_ips = str(self.unique_ips) + "P"
-			self.stats = replies + images + unique_ips
+			unique_ips = str(self.unique_ips) + "P "
+			page = "[" + str(self.page) + "]"
+			self.stats = replies + images + unique_ips + page
 			
 			try:
 				ccolors = curses.color_pair(1) # @UndefinedVariable
 				if self.bumplimit:
 					ccolors = curses.color_pair(3) # @UndefinedVariable
-				self.stdscr.addstr(0, self.screensize_x-len(replies+images+unique_ips), \
+				self.stdscr.addstr(0, self.screensize_x-len(replies+images+unique_ips+page), \
 								u"".join(replies).encode('utf-8'), ccolors)
 				
 				if self.imagelimit:
@@ -62,7 +64,7 @@ class Titlebar(Bar):
 				else:
 					ccolors = curses.color_pair(1) # @UndefinedVariable
 				
-				self.stdscr.addstr(0, self.screensize_x-len(unique_ips+images), \
+				self.stdscr.addstr(0, self.screensize_x-len(unique_ips+images+page), \
 								u"".join(images).encode('utf-8'), ccolors)
 				
 				if self.unique_ips_changed:
@@ -70,8 +72,16 @@ class Titlebar(Bar):
 				else:
 					ccolors = curses.color_pair(1) # @UndefinedVariable
 				
-				self.stdscr.addstr(0, self.screensize_x-len(unique_ips), \
+				self.stdscr.addstr(0, self.screensize_x-len(unique_ips+page), \
 								u"".join(unique_ips).encode('utf-8'), ccolors)
+				
+				if int(self.page) > 8:
+					ccolors = curses.color_pair(3) # @UndefinedVariable
+				else:
+					ccolors = curses.color_pair(1) # @UndefinedVariable
+					
+				self.stdscr.addstr(0, self.screensize_x-len(page), \
+								u"".join(page).encode('utf-8'), ccolors)
 				
 			except Exception as err:
 				self.dlog.excpt(err, msg=">>>in Titlebar.draw() -> thread stats", cn=self.__class__.__name__)

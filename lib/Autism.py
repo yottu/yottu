@@ -40,8 +40,6 @@ class Autism:
 	# source can be "board" or "catalog" or "image"
 	def _query(self, source, image_filename=None):
 		''' Returns datastream of a url generated from its context '''
-		
-
 					
 		chunk_size = 1024
 		for i in range(1, 10):
@@ -51,6 +49,7 @@ class Autism:
 				domain = self.domain
 				
 				# Build uri path for thread or catalog
+				static_source = ["image"]
 				if source == "board":
 					path = "/" + self.board + "/thread/" + self.threadno
 					
@@ -63,11 +62,18 @@ class Autism:
 					
 				elif source == "catalog":
 					path = "/" + self.board + "/catalog.json"
+					
 				elif source == "image":
 					domain = "i.4cdn.org"
+					
 					path = "/" + self.board + "/" + image_filename
 				else:
 					return None
+					
+# 				if self.config.get("site.ssl"):
+# 					uri = "https://" + domain + path
+# 				else:
+# 					uri = "http://" + domain + path
 					
 				uri = "https://" + domain + path # TODO user setting for http/https
 				
@@ -78,7 +84,7 @@ class Autism:
 
 				socket.setdefaulttimeout(timeout) # TODO user setting
 			
-				if (source != "image" and self.lasttime != ""):
+				if (source not in static_source and self.lasttime != ""):
 					headers.update({'If-Modified-Since': self.lasttime})
 				
 				# Fetch data and store into content
@@ -131,7 +137,7 @@ class Autism:
 				
 				request.raise_for_status()
 			
-				if source is not "image":
+				if source not in static_source:
 					#self.lasttime = datastream.headers.get('Last-Modified')
 					self.lasttime = request.headers.get('Last-Modified')
 
@@ -217,6 +223,15 @@ class Autism:
 		except Exception as e:
 			self.dlog.excpt(e, msg=">>>in ContentFetcher.seconds_since_lasttime()", cn=self.__class__.__name__)
 	
+	
+	def fetch(self, source="threads"):
+		try:
+			#content = self._query(source)
+			uri = "https://" + self.domain + "/" + self.board + "/threads.json" 
+			content = requests.get(uri).content
+			return content
+		except Exception as e:
+			self.dlog.excpt(e, msg=">>>in ContentFetcher.fetch()", cn=self.__class__.__name__)
 	
 	def get(self, source="board", nocache=False):
 		

@@ -24,7 +24,12 @@ class DictOutput(object):
 		self.bp = bp
 		self.tdict = {} # contains all posts (including OP)
 		self.originalpost = {} # contains the OP post
+		
+		self.no_abs_to_rel_dict = {} # dict that associates absolute with relative post numbers 
+		self.no_rel = 0 # counter for relative post numbers
+		
 		self.thread = "" # json
+		self.pages = "" # json (/board/threads.json)
 		self.nickname = self.bp.get_nickname()
 		self.comment_tbm = None
 		self.comment_tbm_timeout = 0
@@ -55,9 +60,22 @@ class DictOutput(object):
 		self.comment_tbm = re.sub('>>(\d+)', '\g<1>', self.comment_tbm)
 		self.comment_tbm = re.sub('\n', ' ', self.comment_tbm)
 		
+	
+	def refresh_pages(self, jsonpages):
+		try:
+			for page in json.loads(jsonpages):
+				for thread in page['threads']:
+					
+					if str(self.originalpost['no']) == str(thread['no']):
+						self.bp.tb.page = int(page['page'])
+					
+		except Exception as e:
+			self.bp.tb.page = 0
+			self.dlog.warn(e, logLevel=3, msg=">>>in DictOutput.refresh_pages()")
 
-	def refresh(self, jsonobj):
+	def refresh(self, jsonobj, jsonpages=None):
 		self.thread = jsonobj
+		self.pages = jsonpages
 		
 		#self.tdict['OP'] = {'no': 213, 'com': 'unset', 'sub': 'unset'.encode('utf-8'), 'semantic-url': 'unset'.encode('utf-8')}
 		
@@ -97,10 +115,12 @@ class DictOutput(object):
 				# Archived threads do not set unique_ips
 				except:
 					self.bp.tb.unique_ips = "?"
-					
 				
+				# Look up catalog page the thread is currently in
+				self.refresh_pages(jsonpages)
+
 			except Exception as e: 
-				self.dlog.warn(e, logLevel=3, msg=">>>in DictOutput.refresh()")
+				self.dlog.warn(e, logLevel=3, msg=">>>in DictOutput.refresh() -> OP")
 			
 			try:
 				self.originalpost.update({'semantic_url': self.thread['posts'][0]['semantic_url'].encode('utf-8')})
@@ -121,7 +141,7 @@ class DictOutput(object):
 				pass
 			
 		except Exception as e:
-			self.dlog.warn(e, msg=">>>in CatalogOutput.refresh()", cn=self.__class__.__name__)
+			self.dlog.warn(e, msg=">>>in DictOutput.refresh()", cn=self.__class__.__name__)
 			raise
 		
 		db_posts = []
@@ -142,13 +162,19 @@ class DictOutput(object):
 				if no in self.tdict:
 					continue
 				
+				self.no_abs_to_rel_dict[no] = self.no_rel
+				
 				name = posts['name'][:16]
 				time = datetime.datetime.fromtimestamp(posts['time']).strftime('%H:%M')
 			except:
 				continue
 				
-			color = randint(11, 240)
-	
+			#color = randint(11, 240)
+			color = self.no_rel%244+11
+			
+			# re-assign black color # TODO is this term/color-independent?
+			if color%244 == 26:
+				color = 11
 	
 			refposts = "" # posts referenced in a reply
 			try: country = posts['country']
@@ -288,7 +314,10 @@ class DictOutput(object):
 				self.bp.addstr("", curses.color_pair(color))  # @UndefinedVariable
 				self.bp.addstr(time)
 				
-				self.bp.addstr(" >>" + str(no), curses.color_pair(color))  # @UndefinedVariable
+				if self.cfg.get("board.postno.style") is 'relative':
+					self.bp.addstr(" >>" + str(self.no_rel).zfill(3), curses.color_pair(color))  # @UndefinedVariable
+				else:
+					self.bp.addstr(" >>" + str(no), curses.color_pair(color))  # @UndefinedVariable
 				
 
 					
@@ -312,6 +341,8 @@ class DictOutput(object):
 					self.bp.addstr(" <", curses.color_pair(250))  # @UndefinedVariable
 					self.bp.addstr(file_ext_short, curses.color_pair(250) | curses.A_BOLD)  # @UndefinedVariable
 					self.bp.addstr(name.encode('utf8'), curses.A_DIM)  # @UndefinedVariable
+					if self.cfg.get("board.postno.style") is 'hybrid':
+						self.bp.addstr("-" + str(self.no_rel).zfill(3), curses.color_pair(color))  # @UndefinedVariable
 					self.bp.addstr("> ", curses.color_pair(250))  # @UndefinedVariable
 				
 				# width of name including unicode east asian characters + len("<  > ") == 5	
@@ -344,7 +375,10 @@ class DictOutput(object):
 							# Comment and reference color encoding
 							try:
 								refcolor = self.tdict[int(word)]['color']
-								self.bp.addstr(">>" + word + " ", curses.color_pair(refcolor), indent)  # @UndefinedVariable
+								if self.cfg.get("board.postno.style") is not 'absolute':
+									self.bp.addstr(">>" + str(self.no_abs_to_rel_dict[int(word)]) + " ", curses.color_pair(refcolor), indent)  # @UndefinedVariable
+								else:
+									self.bp.addstr(">>" + word + " ", curses.color_pair(refcolor), indent)  # @UndefinedVariable
 								
 								# Add (You) to referenced posts written by self.nickname
 								if re.match(self.tdict[int(word)]['name'], str(self.nickname)) or self.tdict[int(word)]['marked'] == True:
@@ -361,12 +395,12 @@ class DictOutput(object):
 										self.bp.addstr("(OP) ", curses.A_BOLD | curses.color_pair(4), indent)  # @UndefinedVariable
 									except:
 										raise
-										pass
-
-							except Exception as e:
-								#self.dlog.msg("DictOutput: " + str(e))
+									
+							except KeyError:
 								self.bp.addstr(word + " ", curses.A_DIM, indent)  # @UndefinedVariable
-								pass
+							
+							except Exception as err:
+								self.dlog.excpt(err, msg=">>>in DictOutput.filter_scan()", cn=self.__class__.__name__)
 								
 				except:
 					self.bp.addstr("[File only]", curses.A_DIM, indent)  # @UndefinedVariable
@@ -374,6 +408,7 @@ class DictOutput(object):
 				raise
 	
 			self.bp.addstr("\n", curses.A_NORMAL, indent)  # @UndefinedVariable
+			self.no_rel += 1
 			
 		try:
 			if self.bp.subtitle.append_to_subfile:
