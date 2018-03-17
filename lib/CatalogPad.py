@@ -35,9 +35,12 @@ class CatalogPad(Pad):
         except:
             raise
         
-    def join(self, board, search=""):
+    def join(self, board, search="", cache_only=False):
         self.board = board
-        self.catalogFetcher = CatalogFetcher(self.stdscr, board, self, search)
+        self.catalogFetcher = CatalogFetcher(self.stdscr, board, self, search, cache_only=cache_only)
         self.catalogFetcher.setDaemon(True)
         self.catalogFetcher.start()
-        
+
+    def update_thread(self, notail=False):
+        ''' update (fetch) catalog immediately '''
+        self.catalogFetcher.update()

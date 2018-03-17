@@ -6,7 +6,6 @@ Created on May 19, 2017
 from threading import Thread
 import threading
 from time import sleep
-from DebugLog import DebugLog
 import curses
 
 class Updater(threading.Thread):
@@ -15,9 +14,15 @@ class Updater(threading.Thread):
     def __init__(self, stdscr, wl):
         self.stdscr = stdscr
         self.wl = wl
+        self.cfg = wl.cfg
         
-        
-        self.dlog = DebugLog()
+        self.seconds = 0
+        try:
+            self.tw_update = int(self.cfg.get('threadwatcher.update.interval'))
+        except:
+            self.tw_update = None
+            
+        self.dlog = self.wl.dlog
         self.screensize_y, self.screensize_x = self.stdscr.getmaxyx()
         
         Thread.__init__(self)
@@ -44,7 +49,17 @@ class Updater(threading.Thread):
             
                 self.detect_resize()
                 self.wl.on_update()
+                
+                
+                if self.tw_update:
+                    if self.seconds%self.tw_update == 0:
+                        self.wl.tw.update()
+                
                 sleep(1)
+                
+                # FIXME TODO Config
+                self.seconds +=1
+                
             except:
                 raise
             

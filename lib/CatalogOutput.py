@@ -8,21 +8,23 @@ import curses
 from random import randint
 import re
 import datetime
-from DebugLog import DebugLog
 
 class CatalogOutput(object):
 	def __init__(self, cp, search=""):
 		self.cp = cp
+		self.dlog = cp.dlog
 		self.search = search
 		self.tdict = {}
 		self.result_postno = [] # list of OPs containing search term
-		self.dlog = DebugLog()
 		
 	def refresh(self, json):
 		self.catalog = json
 		
-		
+		self.cp.stdscr.noutrefresh()
 		for pages in self.catalog:
+			
+			page = str(pages['page'])
+			
 			for threads in pages['threads']:
 				
 				try:
@@ -36,14 +38,9 @@ class CatalogOutput(object):
 					time = datetime.datetime.fromtimestamp(threads['time']).strftime('%H:%M')
 				except:
 					continue
-				
-	
-				curses.use_default_colors() # @UndefinedVariable
-				for i in range(0, curses.COLORS):  # @UndefinedVariable
-					curses.init_pair(i + 1, i, -1) # @UndefinedVariable
-						
+									
 				# assign color to post number # start at unreserved colors
-				color = randint(3, 255)
+				color = randint(11, 240)
 	
 				try: replies = threads['replies']
 				except: replies = ""
@@ -105,11 +102,14 @@ class CatalogOutput(object):
 							self.cp.addstr(u''.join((word + " ")).encode('utf8'))
 					except:
 						self.cp.addstr("[File only]")
-				except:
+				except Exception as e:
+					self.dlog.excpt(e, ">>>in CatalogOutput.refresh()", cn=self.__class__.__name__)
 					raise
 
-				self.cp.addstr("\n\n")
-				
+				self.cp.addstr("\n")
+			
+		curses.doupdate()  # @UndefinedVariable
+
 		return self.result_postno	
 		
 	def get_tdict(self):

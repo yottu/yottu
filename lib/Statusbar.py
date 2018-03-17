@@ -6,17 +6,16 @@ from Bar import Bar
 
 class Statusbar(Bar):
 
-	def __init__(self, stdscr, wl, nickname="", board="", threadno=""):
-		super(Statusbar, self).__init__(stdscr)
+	def __init__(self, stdscr, wl, pad, nickname="", board="", threadno=""):
+		super(Statusbar, self).__init__(stdscr, wl, pad)
 		
-		self.wl = wl
 		self.sb_status = ""
 		self.sb_blank = 0
 		self.sb_windowno = "X"
 		self.unread_windows = [] # List of string and curses attribute tuples
 		
 		self.board = board
-		self.threadno = threadno
+		self.threadno = str(threadno)
 		
 		self.nickname = nickname
 		
@@ -50,7 +49,7 @@ class Statusbar(Bar):
 		
 
 	def set_threadno(self, value):
-		self.__threadno = value
+		self.__threadno = str(value)
 
 
 	def on_resize(self):
@@ -63,7 +62,10 @@ class Statusbar(Bar):
 
 	def set_nickname(self, value):
 		self.__nickname = value
-		self.sb_name = "[" + str(self.nickname) + "]"
+		try:
+			self.sb_name = u''.join("[" + self.nickname + "]")
+		except:
+			self.sb_name = u''.join("[Anon]")
 	
 	def calc_blank(self, len_counter):
 		# FIXME dont use hardcoded ints
@@ -72,43 +74,40 @@ class Statusbar(Bar):
 		except:
 			self.sb_blank = 0
 			
-
-				
-			
 	def draw(self, update_n="", wait_n=""):
-		self.sb_clock = "[" + time.strftime('%H:%M') + "]"
-		if self.board:
-			self.sb_win = "[" + str(self.sb_windowno) + ":4chan/"+ self.board + "/" + self.threadno + "]"
-		else:
-			self.sb_win = "[" + str(self.sb_windowno) + ":4chan]"
-			
-		self.sb_clock = "[" + time.strftime('%H:%M') + "]"
-		if self.nickname:
-			self.sb_name = "[" + str(self.nickname) + "]"
-		else:
-			self.sb_name = "[Anon]"
-		
-		# calculate digits of the countdown timers
-		counter = str(update_n)
-		if wait_n:
-			counter = str(wait_n) + "|" + counter
-		self.calc_blank(len(counter))
-		
-		
+		if not self._active:
+			return
+				
 		try:
-			# Default Bar color
-			curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_GREEN)  # @UndefinedVariable
-			# Highlights in Bar color
-			curses.init_pair(2, curses.COLOR_YELLOW, curses.COLOR_GREEN)  # @UndefinedVariable
+			self.stdscr.noutrefresh()
+			self.sb_clock = "[" + time.strftime('%H:%M') + "]"
+			if self.board:
+				self.sb_win = "[" + str(self.sb_windowno) + ":4chan/"+ self.board + "/" + str(self.threadno) + "]"
+			else:
+				self.sb_win = "[" + str(self.sb_windowno) + ":4chan]"
+				
+			self.sb_clock = "[" + time.strftime('%H:%M') + "]"
+# 			if self.nickname:
+# 				self.sb_name = "[" + str(self.nickname) + "]"
+# 			else:
+# 				self.sb_name = "[Anon]"
 			
+			# calculate digits of the countdown timers
+			counter = str(update_n)
+			if wait_n:
+				counter = str(wait_n) + "|" + counter
+			self.calc_blank(len(counter))
+		
+
 			# Add Clock, name and Window/Board/Thread
 			statusbar_text_head = u' '.join((self.sb_clock, self.sb_name, self.sb_win)).encode('UTF-8')
 
 			# Save position
 			saved_y, saved_x = self.stdscr.getyx()
 
+
 			self.stdscr.addstr(self.screensize_y-2, 0, statusbar_text_head, curses.color_pair(1))  # @UndefinedVariable
-			
+			self.stdscr.refresh()
 			if self.unread_windows:
 				for unread_win, cattrib, unread_lines in self.unread_windows:
 					unread_win = str(unread_win+1)
@@ -136,17 +135,28 @@ class Statusbar(Bar):
 			if self.wl.ci:
 				self.wl.ci.clinepos = saved_x
 			
+			curses.doupdate()  # @UndefinedVariable
 			
 		except Exception as err:
-			self.dlog.msg("Statusbar.draw(): " + str(err))
+			self.dlog.excpt(err, msg=">>>in Statusbar.draw()", cn=self.__class__.__name__)
 			#self.wl.ci.clinepos = 4
-			raise
 		
+
 		return
 	
 	def setStatus(self, status):
 		''' sets Status text located right most before n_update '''
-		self.sb_status = status[:self.sb_blank-1]
+		
+		# uses locks to make it thread safe
+		try:
+			self.sb_status = status[:self.sb_blank-1]
+			self.pad.lock.acquire_lock()
+			self.draw()
+		except Exception as err:
+			self.dlog.excpt(err, msg=">>>in Statusbar.setStatus()", cn=self.__class__.__name__)
+		finally:
+			self.pad.lock.release_lock()
+		
 		
 		
 	nickname = property(get_nickname, set_nickname, None, None)

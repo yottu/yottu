@@ -5,7 +5,6 @@ Created on Oct 5, 2015
 from threading import Thread
 from DictOutput import DictOutput
 from Autism import Autism
-from DebugLog import DebugLog
 
 import curses
 import time
@@ -18,18 +17,18 @@ class ThreadFetcher(threading.Thread):
 		self.stdscr = stdscr
 		self.board = board
 		self.bp = bp
+		self.dlog = self.bp.wl.dlog
 		self.nickname = nickname
 		self.contentFetcher = Autism(self.board, self.threadno)
-
 		
 		self.sb = self.bp.sb
 		self.tb = self.bp.tb
 				
-		#self.sb = Statusbar(self.stdscr, self.nickname, self.board, self.threadno)
-		#self.tb = Titlebar(self.stdscr)
 		self.tdict = {}
 		self.dictOutput = ""
 		self.update_n = 9
+		self.runtime = 0 # iteration of while loop
+		self.refresh_pages = 60 # interval to refresh page thread is on
 		
 		Thread.__init__(self)
 		self._stop = threading.Event()
@@ -47,11 +46,22 @@ class ThreadFetcher(threading.Thread):
 	def stop(self):
 		self._stop.set()
 		
-	def update(self):
-		self._update.set()
+	def update(self, notail=False):
+		''' Update thread immediately '''
+		
+		# Prevent update loop if post count keeps mismatching
+		if self.contentFetcher.notail is False:
+			self.contentFetcher.notail = notail
+			self._update.set()
+		else:
+			self.contentFetcher.notail = False
 		
 	def active(self):
 		self._active = True
+		try:
+			self.tb.set_title(self.dictOutput.getTitle())
+		except:
+			pass
 		self.tb.draw()
 		
 	def inactive(self):
@@ -64,29 +74,29 @@ class ThreadFetcher(threading.Thread):
 	def save_image(self, *args, **kwargs):
 		try:
 			return self.contentFetcher.save_image(*args, **kwargs)
-		except:
+		except Exception as err:
+			self.dlog.excpt(err, msg=">>>in ThreadFetcher.save_image()", cn=self.__class__.__name__)
 			raise
 			
 
 	def run(self):
-		dlog = DebugLog()
-		dlog.msg("ThreadFetcher: Running on /" + self.board + "/" + self.threadno, 4)
+		self.dlog.msg("ThreadFetcher: Running on /" + self.board + "/" + self.threadno, 4)
 		
 		try:
 			self.dictOutput = DictOutput(self.bp)
+			self.bp.postReply.dictOutput = self.dictOutput # Needed for marking own comments
 		except Exception as e:
-			dlog.excpt(e)
+			self.dlog.excpt(e, msg=">>>in ThreadFetcher.run() ->dictOutput", cn=self.__class__.__name__)
 			self.stdscr.addstr(0, 0, str(e), curses.A_REVERSE)  # @UndefinedVariable
 			self.stdscr.refresh()
 				
 		
 		while True:
-			
-			dlog.msg("ThreadFetcher: Fetching for /" + self.board + "/" + self.threadno, 5)
+			self.dlog.msg("ThreadFetcher: Fetching for /" + self.board + "/" + self.threadno, 5)
 			
 			# leave update loop if stop is set
 			if self._stop.is_set():
-				dlog.msg("ThreadFetcher: Stop signal for /" + self.board + "/" + self.threadno, 3)
+				self.dlog.msg("ThreadFetcher: Stop signal for /" + self.board + "/" + self.threadno, 3)
 				break
 			
 			# Do additional things when update bit is set
@@ -95,15 +105,26 @@ class ThreadFetcher(threading.Thread):
 	
 			try:
 				self.sb.setStatus('')
+				self.contentFetcher.sb = self.sb
 				self.contentFetcher.setstdscr(self.stdscr)
-				self.contentFetcher.get()
-				thread = getattr(self.contentFetcher, "jsoncontent")
-				self.dictOutput.refresh(thread)
+				
+				pages = self.contentFetcher.fetch("threads")				
+				thread_state = self.contentFetcher.get()
+				thread = self.contentFetcher.jsoncontent
+					
+				self.dictOutput.refresh(thread, jsonpages=pages)
 				self.bp.set_tdict(self.dictOutput.get_tdict())
 				
+				self.bp.autofocus()
 				
+				# Set title if window is active
 				if self._active:
 					self.tb.set_title(self.dictOutput.getTitle())
+					
+				# Immediately refresh cached threads
+				if thread_state is "cached":
+					self.sb.draw("CACHED")
+					self.update()	
 					
 				# reset interval on thread refresh
 				if self.update_n > 9:
@@ -112,6 +133,8 @@ class ThreadFetcher(threading.Thread):
 				# decrease interval on highly active threads
 				elif self.update_n > 1:
 					self.update_n -= 1
+					
+
 				
 			except HTTPError as e:
 				error_code = e.response.status_code
@@ -119,13 +142,13 @@ class ThreadFetcher(threading.Thread):
 				# stop updating if thread 404'd
 				if error_code == 404:
 					self.sb.setStatus(str(e.response.reason) + ": " + str(e.response.url))
-					dlog.excpt(e)
+					self.dlog.excpt(e)
 					break
 				
 				# assume temporary error for e.g. 403	
 				elif  400 <= error_code < 500:
 					self.sb.setStatus(str(e.response.reason) + ": " + str(e.response.url))
-					dlog.warn(e)
+					self.dlog.warn(e)
 				
 				# increase update interval on stale thread 
 				elif error_code == 304:
@@ -134,9 +157,7 @@ class ThreadFetcher(threading.Thread):
 
 					self.sb.setStatus(str(error_code))
 			except Exception as e:
-				self.sb.setStatus(str(e))
-				dlog.excpt(e)
-				pass
+				self.dlog.excpt(e, msg=">>>in ThreadFetcher.run()", cn=self.__class__.__name__)
 
 							
 			for update_n in range (self.update_n, -1, -1):
@@ -149,6 +170,17 @@ class ThreadFetcher(threading.Thread):
 				if self._update.is_set():
 					self._update.clear()
 					break
+				elif self.runtime%self.refresh_pages == 0:
+					
+				# Update page number thread is on
+					try:
+						jsonpages = self.contentFetcher.fetch("threads")
+						self.dictOutput.refresh_pages(jsonpages)
+						# Set title if window is active
+						if self._active:
+							self.tb.set_title(self.dictOutput.getTitle())
+					except Exception as e:
+						self.dlog.excpt(e, msg=">>>in ThreadFetcher.run() ->refresh.pages", cn=self.__class__.__name__)
 				
 				try:
 					if self._active:
@@ -157,15 +189,15 @@ class ThreadFetcher(threading.Thread):
 							self.sb.draw(update_n=update_n, wait_n=wait_n)
 						else:
 							self.sb.draw(update_n)
-				except Exception as e:
-					dlog.excpt(e, cn=self.__class__.__name__)
-					pass
+				except Exception as err:
+					self.dlog.excpt(err, msg=">>>in ThreadFetcher.run() ->sb.draw()", cn=self.__class__.__name__)
 				
 
 				time.sleep(1)
+				self.runtime +=1
 				
 		# End of thread loop
 				
-		dlog.msg("ThreadFetcher: Leaving /" + self.board + "/" + self.threadno, 3)
+		self.dlog.msg("ThreadFetcher: Leaving /" + self.board + "/" + self.threadno, 3)
 				
 	tdict = property(get_tdict, set_tdict, None, None)

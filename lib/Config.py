@@ -18,6 +18,8 @@ class Config(object):
 	'''
 	
 	def __init__(self, configDir=".config/yottu/", configFile="config", debug=True):
+
+		self.observers = []
 		
 		self.homeDir = expanduser("~/")
 		self.configDir = configDir # i.e. .config/yottu/
@@ -26,11 +28,23 @@ class Config(object):
 		self.configFullPath = self.homeDir + self.configDir + self.configFile # i.e. /home/user/.config/yottu/config
 		
 		self.debug = debug # avoid recursion loop if called by Config
-		if debug:
+		if self.debug:
 			self.dlog = DebugLog.DebugLog()
 		self.cfg = ConfigParser.SafeConfigParser()
 		
 		self.readConfig()
+		
+	def config_changed(self, *args, **kwargs):
+		for observer in self.observers:
+			observer.on_config_change(*args, **kwargs)		
+			
+	def register(self, observer):
+		if not observer in self.observers:
+			self.observers.append(observer)
+			
+	def unregister(self, observer):
+		if observer in self.observers:
+			self.observers.remove(observer)
 
 	def set_config_dir_full_path(self, value):
 		self.__configDirFullPath = value
@@ -42,27 +56,49 @@ class Config(object):
 	def defaults(self):
 		''' returns dict with default settings '''
 		return {
+			'app.browser' : '/usr/bin/chromium --incognito', # Application to use for opening links
 			'autojoin_threads' : '',
-			'board.default': 'g', #    
+			'board.default': 'g', #
+			'board.postno.style': 'hybrid', # relative, absolute or hybrid
+			'captcha.version': '2', # 1 unsupported as of 01-2018
+			'catalog.cache.maxage': '1800', # Cached catalog's maximum age  
+			'catalog.update.time': '180',
 			'config.autoload': 'False', # Load settings after /save
 			'config.autosave': 'False', # Save settings after /set
+			'database.sqlite.enable': 'False', # 
+			'database.sqlite.path': './yottu.db', #
 			'proxy.socks.address': '127.0.0.1', # 
 			'proxy.socks.enable': 'False', # 
 			'proxy.socks.port': '9050', #   
-			'user.options': '', #  
+			'site.ssl': 'True', #
+			'threadwatcher.enable': 'True', # 
+			'threadwatcher.skip_active_boards': 'False', #
+			'threadwatcher.update.interval': 300, #
+			'user.options': '',  # 
 			'user.name': '', #
 			'user.tripcode' : '', # 
+			'file.catalog.directory': './cache/catalogs/', #
 			'file.image.autodownload': 'False', # 
-			'file.image.directory': './cache/', # 
+			'file.image.directory': './cache/images/', # 
+			'file.thread.directory': './cache/threads/', #
 			'file.thumb.autodownload': 'False', # 
 			'file.thumb.directory': './cache/thumbs/', #
 			'file.video.autodownload': 'False', #  
-			'file.video.directory': './cache/', # 
+			'file.video.directory': './cache/videos/', # 
 			'file.video.subfile': 'subfile.ass', #
+			'file.video.twitch.subfile': 'subfile.ass', #
 			'filter.except.list': '', # "[ {'filter': {'country': ['DE']}, 'pattern':[]}, {'filter': {'country': ['JP']}, 'pattern':[] } ]", #
 			'filter.ignore.list': '', # "[{'filter': {'name': 'Anonymous', 'country': ['DE', 'FR']}, 'pattern':['Japanese', 'OP']}]", #     
 			'log.file.location': './debug.log', # 
-			'log.level': '3' # 
+			'log.level': '3', # 0 (Nothing) - 5 (Everything)
+			'video.twitch.irc_host': 'irc.twitch.tv', # 
+			'video.twitch.irc_port': '6667', # TODO look into secure connection
+			'video.twitch.nick': '', # twitch nick (lower case?)
+			'video.twitch.oauth': '', # Copy/Paste from https://twitchapps.com/tmi/  
+			'window.board.autofocus': 'True', # Focus board window on new messages
+			'window.catalog.autofocus': 'False', # Focus catalog window on new messages
+			'window.command.autofocus': 'False', # Focus command window on new messages
+			'window.highlight.autofocus': 'True', # Focus window on new highlight
 		
 			}
 
@@ -82,17 +118,19 @@ class Config(object):
 					self.cfg.set('Main', key, json.dumps(value))
 				else:
 					self.cfg.set('Main', key, json.dumps(None))
+				
+				self.config_changed(key, value)
 
 			else:
 				raise KeyError('Invalid setting: ' + str(key))
-		except KeyError as e:
+		except KeyError:
 			raise
 		except DuplicateSectionError as w:
 			self.dlog.warn(w)
-			pass
-		except Exception as e:
-			self.dlog.excpt(e)
-			pass
+		except Exception as err:
+			self.dlog.excpt(err, msg=">>>in Config.set()", cn=self.__class__.__name__)
+		
+		self.config_changed(key, value)
 		
 	def add(self, key, key_sub, val_sub):
 		'''add json.dumps to value'''
@@ -103,6 +141,7 @@ class Config(object):
 		# try to load existing values
 		try:
 			keyval = json.loads(self.get(key))
+			self.config_changed()
 		except:
 			pass
 		
@@ -119,6 +158,7 @@ class Config(object):
 # 		except:
 # 			pass
 # 		del keyval['key_sub']
+#		self.config_changed()
 		pass
 	
 	def clear(self, key):

@@ -9,7 +9,7 @@ import curses
 import threading
 from DebugLog import DebugLog
 from BoardPad import BoardPad
-import Config
+from TermImage import TermImage
 import re
 import json
 from urllib2 import HTTPError
@@ -30,6 +30,8 @@ class CommandInterpreter(threading.Thread):
 		self.stdscr = stdscr
 		self.wl = wl
 		self.wl.ci = self
+		self.cfg = self.wl.cfg
+		
 		self.screensize_y = 0
 		self.screensize_x = 0
 		
@@ -40,7 +42,6 @@ class CommandInterpreter(threading.Thread):
 		
 		Thread.__init__(self)
 		
-		self.cfg = Config.Config()
 		
 		# For Saving/Restoring window state #FIXME
 		#self.state_file = "state.pickle"
@@ -49,6 +50,7 @@ class CommandInterpreter(threading.Thread):
 		self.cmode = False # command mode
 		self.tmode = False # talking mode (no need to prefix /say)
 		self.captcha_mask = False # Query captcha input
+		self.captcha_challenge_text = "" # "Select all images with ducks."
 		
 		self.clinepos = 4      # Visual position of the cursor in the command line
 		self.cline_buffer = 4  # end of line buffer to wrap the text at when command line is filled
@@ -148,11 +150,17 @@ class CommandInterpreter(threading.Thread):
 					#self.dlog.msg(str(kv.items()[0][0]))
 					board = kv.items()[0][0]
 					thread = kv.values()[0]
-					self.dlog.msg("Joining thread: >>>/" + board + "/" + thread)
+					self.dlog.msg("Rejoining thread: >>>/" + board + "/" + thread)
 					self.wl.join_thread(board, thread)
 		except Exception:
 			pass
-		
+	
+	
+	def is_boardpad(self):
+		active_window = self.wl.get_active_window_ref()
+		if not isinstance(active_window, BoardPad):
+			return False
+		return True
 		
 	def setting_list(self, key):
 		try:
@@ -169,23 +177,34 @@ class CommandInterpreter(threading.Thread):
 			self.screensize_y, self.screensize_x = self.stdscr.getmaxyx();
 			
 			self.wl.on_resize()
-	
+			self.draw_cmdinput()
+
+		except Exception as err:
+			self.dlog.msg("CommandInterpreter.on_resize(): " + str(err))
+
+	def clear_cmdinput(self, status_char="^"):
+		cmd_text = "[" + status_char + "] "
+		self.stdscr.move(self.screensize_y-1, 0)
+		self.stdscr.clrtoeol()
+		self.stdscr.addstr(cmd_text)
+		self.clinepos = len(cmd_text)
+		
+	def draw_cmdinput(self):
+		try:
 			self.stdscr.move(self.screensize_y-1, 0)
 			self.stdscr.clrtoeol()
 			if self.command != "":
 				if self.tmode:
-					self.stdscr.addstr(self.screensize_y-1, 0, "[>] " + self.command[4:])
+					self.stdscr.addstr(self.screensize_y-1, 0, "[>] ")
 				elif self.cmode:
-					self.stdscr.addstr(self.screensize_y-1, 0, "[/] " + self.command)
+					self.stdscr.addstr(self.screensize_y-1, 0, "[/] ")
 			else:
 				self.stdscr.addstr(self.screensize_y-1, 0, self.cmd_prefix)
 			self.stdscr.move(self.screensize_y-1, self.clinepos)
+			
+			self.refresh_cmd_page()
 		except Exception as err:
-			self.dlog.msg("CommandInterpreter.on_resize(): " + str(err))
-
-		
-
-		
+			self.dlog.excpt(err, msg=">>>in CommandInterpreter.draw_cmdinput()", cn=self.__class__.__name__)
 
 		
 	def parse_param(self, string):
@@ -233,19 +252,28 @@ class CommandInterpreter(threading.Thread):
 # 			pass
 
 	def query_captcha(self):
-		self.command = ""
-		self.command_pos = 0
-		self.clear_cmdinput("c")
-		self.cmode = True
-		self.cstrout("captcha ")
+		# Display captcha challenge (text) and switch to command mode
+		
+		try:
+			self.command = ""
+			self.command_pos = 0
+			self.clear_cmdinput("c")
+			self.cmode = True
+			# self.cstrout(self.captcha_challenge_text.split()[-1][:-1] + ": ")
+			
+			self.cstrout('captcha ')
+			
+			# align right
+			
+			challenge_text = self.captcha_challenge_text.replace('Select all images with ', '(')[:-1] + ") "	
+			challenge_text = (self.screensize_x-5-len(challenge_text))*" " + challenge_text
+					
+			self.stdscr.addstr(self.screensize_y-1, 4, challenge_text[:self.screensize_x-5].encode('utf-8'), curses.A_BOLD )  # @UndefinedVariable
 
-	def clear_cmdinput(self, status_char="^"):
-		cmd_text = "[" + status_char + "] "
-		self.stdscr.move(self.screensize_y-1, 0)
-		self.stdscr.clrtoeol()
-		self.stdscr.addstr(cmd_text)
-		self.clinepos = len(cmd_text)
-
+			
+		except Exception as err:
+			self.dlog.excpt(err, msg=">>>in CommandInterpreter.query_captcha()", cn=self.__class__.__name__)
+		
 
 	def attach_file(self):
 		''' start ranger to select filename '''
@@ -452,7 +480,9 @@ class CommandInterpreter(threading.Thread):
 			if postno and isinstance(activeWindow, BoardPad):
 				# Don't display help when command line is in usage
 				if not self.cmode:
-					image_filename = activeWindow.tdict[int(self.postno_marked)]['filename']
+					image_filename = activeWindow.tdict[(int(self.postno_marked))]['filename']
+					image_filename += activeWindow.tdict[int(self.postno_marked)]['ext']
+					image_filesize = activeWindow.tdict[int(self.postno_marked)]['fsize']
 					post_is_me = activeWindow.tdict[int(self.postno_marked)]['marked']
 					if post_is_me:
 						mark = "un[m]ark"
@@ -462,12 +492,16 @@ class CommandInterpreter(threading.Thread):
 					# generate help text
 					help_text = "Post: " + mark + " as own"
 					if image_filename:
-						help_text = "Image: [v]iew, [f]eh/ext ([F]ullscreen), [b]g - " + help_text 
+						help_text = " (" + str(image_filesize/1024) + "K) [v]iew, [f]eh/ext ([F]ullscreen), [b]g - " + help_text
+						max_filename_chars = self.screensize_x-9-len(help_text)
+						if max_filename_chars < len(image_filename):
+							image_filename = image_filename[:max_filename_chars] + "(..)"
+						help_text = image_filename + help_text 
 
 					# align right	
 					help_text = (self.screensize_x-5-len(help_text))*" " + help_text
 					
-					self.stdscr.addstr(self.screensize_y-1, 4, help_text[:self.screensize_x-5] )
+					self.stdscr.addstr(self.screensize_y-1, 4, help_text[:self.screensize_x-5].encode('utf-8'), curses.A_DIM )  # @UndefinedVariable
 
 				self.wl.get_active_window_ref().show_image_thumb(self.postno_marked)
 			elif postno and isinstance(activeWindow, CatalogPad):
@@ -492,6 +526,9 @@ class CommandInterpreter(threading.Thread):
 	def exec_com(self):
 		# add to command history 
 		self.cmd_history_add()
+		
+		if self.command[0] == '/':
+			self.command = self.command.lstrip('/')
 
 		cmd_args = self.command.split()
 		
@@ -513,6 +550,10 @@ class CommandInterpreter(threading.Thread):
 			# cut off the "say " while keeping newlines
 			comment = self.command[4:]
 			
+			# Do nothing if comment is empty and no file is attached
+			if not comment and not self.filename[1]:
+				return
+			
 			# Check if executed on a BoardPad
 			active_window = self.wl.get_active_window_ref()
 			if not isinstance(active_window, BoardPad):
@@ -525,6 +566,7 @@ class CommandInterpreter(threading.Thread):
 			try:
 				active_window.post_prepare(comment=comment, filename=self.filename[0], ranger=self.filename[1])
 				self.captcha_mask = True
+				self.captcha_challenge_text = active_window.postReply.captcha2_challenge_text
 			except Exception as err:
 				self.dlog.msg("CommandInterpreter: BoardPad.set_captcha(): " + str(err))
 
@@ -564,8 +606,19 @@ class CommandInterpreter(threading.Thread):
 			except PostReply.PostError as err:
 				#active_window.update_thread()
 				active_window.sb.setStatus(str(err))
+			
+			# Captcha probably wrong
+			except AttributeError as err:
+				active_window.sb.setStatus("Could not verify captcha.")
+				self.dlog.msg("Could not verify captcha: " + str(err))
+				
+			# Non-integers in captcha string
+			except ValueError as err:
+				self.dlog.msg("Can't submit captcha (only integers allowed): " + str(err))
+			
 			except Exception as err:
 				self.dlog.msg("Can't submit captcha: " + str(err))
+				self.dlog.excpt(err, msg=">>>in CommandInterpreter.exec_com()", cn=self.__class__.__name__)
 				
 				curses.ungetch('/')  # @UndefinedVariable
 				#self.cmode
@@ -620,11 +673,11 @@ class CommandInterpreter(threading.Thread):
 		
 		# Ignore feature
 		elif re.match("ignore", self.command) or re.match("except", self.command):
-			list = cmd_args.pop(0)
+			list_ = cmd_args.pop(0)
 			
-			if list == "ignore":
+			if list_ == "ignore":
 				filterlist = self.cfg.get('filter.ignore.list')
-			elif list == "except":
+			elif list_ == "except":
 				filterlist = self.cfg.get('filter.except.list')
 		
 			def list_filter(filterlist):
@@ -667,18 +720,24 @@ class CommandInterpreter(threading.Thread):
 				
 				board = False
 				
-				# Directly join thread if integer was given 
-				if isinstance(joinThread, int):
-					self.wl.join_thread(self.context, joinThread)
+				# Directly join thread if integer was given
 				
-				else:
+				try:
+					self.wl.join_thread(self.context, int(joinThread))
+					self.wl.compadout("Joining " + str(int(joinThread)))
+				
+				# Open catalog and search
+				except:
 					joinThread = joinThread.split("/")
 					search = joinThread.pop()
 					
 					if joinThread:
 						board = joinThread.pop()
-					
-					self.wl.catalog(board or self.context, search)
+						
+					try:
+						self.wl.join_thread(board, int(search))
+					except:
+						self.wl.catalog(board or self.context, search)
 				
 			except IndexError:
 				self.wl.compadout("Usage: /join <thread number>")
@@ -687,14 +746,22 @@ class CommandInterpreter(threading.Thread):
 			except:
 				raise
 			
-		elif re.match("catalog", self.command):
+		elif re.match("catalog", self.command) or re.match("search", self.command):
+			mode = cmd_args.pop(0).encode('utf-8')
 			
+			cache_only = False
+			if mode == u"search":
+				cache_only = True
+			
+			
+			
+			self.dlog.msg("--DEBUG: mode is " + mode + " cache_only is " + str(cache_only))
 			try:
 				self.wl.compadout("Creating catalog for " + self.context)
-				search = cmd_args[1]
-				self.wl.catalog(self.context, search)
+				search = cmd_args[0].encode('utf-8')
+				self.wl.catalog(self.context, search, cache_only=cache_only)
 			except IndexError:
-				self.wl.catalog(self.context)
+				self.wl.catalog(self.context, cache_only=cache_only)
 			except:
 				raise
 			
@@ -720,9 +787,20 @@ class CommandInterpreter(threading.Thread):
 				self.dlog.msg("Autoloading..")
 				self.readconfig()
 				
-		elif re.match("mpv", self.command):
+		elif re.match("find", self.command):
+			if self.is_boardpad():
+				self.wl.get_active_window_ref().search_mp_out(cmd_args.pop(1))
+			else:
+				self.dlog.msg("/find currently only works in threads.")
+				return
+				
+		elif re.match("mpv", self.command) \
+		  or re.match("twitch", self.command) \
+		  or re.match("youtube", self.command):
+			
 			try:
-				mpv_source = cmd_args.pop(1)
+				site = cmd_args.pop(0)
+				mpv_source = cmd_args.pop(0)
 			except:
 				self.wl.compadout("Usage: /mpv <source>")
 				return
@@ -733,8 +811,11 @@ class CommandInterpreter(threading.Thread):
 				self.dlog.msg("/mpv must be used in a thread.")
 				return
 			
-			active_window.video_stream(mpv_source)
-			
+			active_window.video_stream(mpv_source, site=site)
+		
+		elif re.match("playall", self.command):
+			if self.is_boardpad():
+				self.wl.get_active_window_ref().youtube_play_all()
 			
 		elif re.match("nick", self.command):
 			cmd_args.pop(0)
@@ -773,6 +854,21 @@ class CommandInterpreter(threading.Thread):
 				except Exception as e:
 					self.dlog.excpt(e)
 					
+		
+		elif re.match("tw", self.command):
+			try:
+				arg = cmd_args.pop(1)
+				
+				if arg == "update":
+					if self.cfg.get('threadwatcher.enable'):
+						self.wl.compadout("ThreadWatcher: Updating ..")
+						self.wl.tw.update()
+					else:
+						self.wl.compadout("Threadwatcher is disabled.")
+						
+				
+			except IndexError:
+				self.wl.compadout("ThreadWatcher: -Not Implemented- /tw update to force update")
 					
 		elif re.match("window", self.command):
 			
@@ -810,18 +906,27 @@ class CommandInterpreter(threading.Thread):
 	
 	# Toggle post as user's for easy (You)s 
 	def claim_post_toggle(self):
-		activeWindow = self.wl.get_active_window_ref()
-		
-		if self.postno_marked:
-			tdict_marked = activeWindow.tdict[int(self.postno_marked)]['marked']
+		try:
 			
-			if tdict_marked == False:
+			activeWindow = self.wl.get_active_window_ref()
+			
+			if self.postno_marked:
+				tdict_marked = activeWindow.tdict[int(self.postno_marked)]['marked']
 				
-				activeWindow.tdict[int(self.postno_marked)]['marked'] = True
-				activeWindow.sb.setStatus("Post marked.")
-			else:
-				activeWindow.tdict[int(self.postno_marked)]['marked'] = False
-				activeWindow.sb.setStatus("Post no longer marked.")
+				if tdict_marked == False:
+					
+					activeWindow.tdict[int(self.postno_marked)]['marked'] = True
+					self.wl.tw.insert(activeWindow.board, self.postno_marked, activeWindow.threadno)
+					self.wl.db.insert_post(activeWindow.board, activeWindow.threadno, self.postno_marked)
+					activeWindow.sb.setStatus("Post marked.")
+				else:
+					activeWindow.tdict[int(self.postno_marked)]['marked'] = False
+					self.wl.tw.remove(activeWindow.board, self.postno_marked, activeWindow.threadno)
+					self.wl.db.delete_post(activeWindow.board, self.postno_marked)
+					activeWindow.sb.setStatus("Post no longer marked.")
+		
+		except Exception as err:
+			self.dlog.excpt(err, msg=">>>in CommandInterpreter.claim_post_toggle()", cn=self.__class__.__name__)
 	
 	
 
@@ -1179,11 +1284,11 @@ class CommandInterpreter(threading.Thread):
 							           or (keyname and re.match("^\^\S$", keyname)) \
 							           or re.match("^\^\S", inputstr):
 								if alt_key:
-									self.dlog.msg("Unbound key (Alt): ^[" + str(alt_key) )
+									self.dlog.msg("Unbound key (Alt): ^[" + str(alt_key), 4)
 								elif keyname:
-									self.dlog.msg("Unbound key (Ctrl): " + keyname)
+									self.dlog.msg("Unbound key (Ctrl): " + keyname, 4)
 								else:
-									self.dlog.msg("Unbound key (ncurses): " + c)
+									self.dlog.msg("Unbound key (ncurses): " + c, 4)
 								continue
 							
 
@@ -1192,7 +1297,7 @@ class CommandInterpreter(threading.Thread):
 								self.cout(c)
 								
 							elif ord(inputstr[0]) == 27:
-								raise ValueError("Unknown Escape sequence: " + str(inputstr))
+								raise ValueError("Unknown Escape sequence: " + str(inputstr), 2)
 								
 							else:
 								self.cstrout(inputstr)
@@ -1291,6 +1396,17 @@ class CommandInterpreter(threading.Thread):
 					if alt_key == 'q':
 						self.terminate = 1
 						
+					elif alt_key == 'c':
+						if self.is_boardpad():
+							try:
+								app_browser = self.cfg.get('app.browser').split(" ")
+								url = self.wl.get_active_window_ref().url
+								app_browser.append(url)
+								TermImage.exec_cmd(app_browser)
+							except Exception as err:
+								self.dlog.warn(err, msg=">>>in CommandInterpreter.run()", cn=self.__class__.__name__)
+								self.wl.compadout("Failed to launch app.browser")
+						
 					elif alt_key == 'F':
 						thread.start_new_thread(self.wl.get_active_window_ref().play_all_videos, ())
 						
@@ -1298,14 +1414,13 @@ class CommandInterpreter(threading.Thread):
 						continue
 				
 				else:
-					self.dlog.msg("Unbound key: " + str(c))
+					self.dlog.msg("Unbound key: " + str(c), 4)
 					continue
 				
 		except (TypeError, UnicodeDecodeError) as err:
 			self.dlog.excpt(err, msg=">>>in CommandInterpreter.run() (outer)")		
 		except Exception as err:
 			self.dlog.excpt(err, msg=">>>in CommandInterpreter.run() (outer)")
-			pass
 	# End of run loop
 	
 	def backspace(self, characters=-1):

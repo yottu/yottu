@@ -7,8 +7,9 @@ Basic class for ncurses pads such as CommandPad and BoardPad
 from __future__ import division
 import curses
 import unicodedata
-from DebugLog import DebugLog
 import re
+import thread
+
 from Titlebar import Titlebar
 from Statusbar import Statusbar
 
@@ -19,11 +20,15 @@ class Pad(object):
 	def __init__(self, stdscr, wl):
 		self.stdscr = stdscr
 		self.wl = wl # WindowLogic
+		self.cfg = self.wl.cfg
+		
+		self.lock = thread.allocate_lock()  # Used for concurrent writing by multiple threads
 		
 		self.screensize_y, self.screensize_x = self.stdscr.getmaxyx();
-		height = self.screensize_y-Pad.reservedscreen; width = self.screensize_x
+		height = self.screensize_y-Pad.reservedscreen
+		width = self.screensize_x
 		
-		self.pheight = height;
+		self.pheight = height
 		self.pwidth = width
 		self.mypad = curses.newpad(self.pheight+Pad.padbuffersize, self.pwidth)  # @UndefinedVariable
 		curses.curs_set(False)  # @UndefinedVariable
@@ -36,10 +41,10 @@ class Pad(object):
 		(self.pmaxy, self.pmaxx) = self.mypad.getmaxyx()
 		self.actualpmaxy = self.pmaxy-Pad.padbuffersize
 		
-		self.tb = Titlebar(self.stdscr)
-		self.sb = Statusbar(self.stdscr, self.wl, nickname="(<Pad>)")
+		self.tb = Titlebar(self.stdscr, self.wl, self)
+		self.sb = Statusbar(self.stdscr, self.wl, self, nickname="(<Pad>)")
 		
-		self.dlog = DebugLog("debug.log")
+		self.dlog = self.wl.dlog #DebugLog("debug.log")
 		
 		self.dlog.msg("pmaxy: " + str(self.pmaxy), 5)
 		self.dlog.msg("actualpmaxy: " + str(self.actualpmaxy), 5)
@@ -60,10 +65,28 @@ class Pad(object):
 
 
 	def set_nickname(self, value):
-		self.__nickname = value
-		self.sb.set_nickname(self.nickname)
+		
+		try:
+			
+			self.__nickname = value
+			self.sb.set_nickname(self.nickname)
+			
+		except Exception as e:
+			self.dlog.excpt(e, msg=">>>in Pad.set_nickname()", cn=self.__class__.__name__)
 
-
+	def autofocus(self):
+		''' Raise window on configuration directive '''
+		try:
+			
+			window_index = self.wl.get_window(self)
+			active_window_index = self.wl.get_active_window()
+			if self.cfg.get('window.board.autofocus') and window_index is not active_window_index:
+				self.wl.set_active_window(window_index)
+				self.autoScroll = True
+				self.auto_scroll()
+				
+		except Exception as e:
+			self.dlog.excpt(e, msg=">>>in Pad.autofocus()", cn=self.__class__.__name__)
 
 	# Updater polls this method every n seconds
 	def on_update(self):
@@ -74,39 +97,63 @@ class Pad(object):
 		
 	def active(self):
 		self._active = True
+		self.stdscr.clear()
 		
-		# Reset window's unread properties and remove unread status from status bar
-		self.wl.set_property(self, 'sb_unread', False)
-		self.wl.windowListProperties[self]['sb_lines'] = 0
-		self.wl.windowListProperties[self]['sb_mentioned'] = False
-		self.generate_unread_window_element()
+		try:
+			
+			if self.autoScroll and self.__position is self.size:
+				self.clear_unread_window_elements()
+				
+			self.sb.active()	
+			self.tb.active()
+			self.draw()
+
+		except Exception as e:
+			self.dlog.excpt(e, msg=">>>in Pad.active()", cn=self.__class__.__name__)	
+	
 		
-		self.sb.draw()
-		self.tb.draw()
-		self.draw()
+	def clear_unread_window_elements(self):
+		''' Reset window's unread properties and remove unread status from status bar '''
+		try:
+			
+			self.wl.set_property(self, 'sb_unread', False)
+			self.wl.windowListProperties[self]['sb_lines'] = 0
+			self.wl.windowListProperties[self]['sb_mentioned'] = False
+			self.generate_unread_window_element()
+			
+		except Exception as e:
+			self.dlog.excpt(e, msg=">>>in Pad.clear_unread_window_elements()", cn=self.__class__.__name__)
 		
 	def inactive(self):
 		self._active = False
+		self.sb.inactive()
+		self.tb.inactive()
 		
 	def on_resize(self):
-		screensize_y, screensize_x = self.stdscr.getmaxyx()
-		curses.resize_term(screensize_y, screensize_x)  # @UndefinedVariable
-		
-		height = screensize_y-self.reservedscreen; width = screensize_x
-		self.pheight = height
-		self.pwidth = width
-		
-		self.mypad.resize(self.pheight+Pad.padbuffersize, self.pwidth)
-		
-		(self.pposy, self.pposx) = self.mypad.getyx()
-		(self.pmaxy, self.pmaxx) = self.mypad.getmaxyx()
-		self.actualpmaxy = self.pmaxy-Pad.padbuffersize
-		self.draw()
+		try:
+			screensize_y, screensize_x = self.stdscr.getmaxyx()
+			curses.resize_term(screensize_y, screensize_x)  # @UndefinedVariable
+			
+			height = screensize_y-self.reservedscreen; width = screensize_x
+			self.pheight = height
+			self.pwidth = width
+			
+			self.mypad.resize(self.pheight+Pad.padbuffersize, self.pwidth)
+			
+			(self.pposy, self.pposx) = self.mypad.getyx()
+			(self.pmaxy, self.pmaxx) = self.mypad.getmaxyx()
+			self.actualpmaxy = self.pmaxy-Pad.padbuffersize
+			self.draw()
+		except Exception as e:
+			self.dlog.excpt(e, msg=">>>in Pad.on_resize()", cn=self.__class__.__name__)
 		
 	
 	def addstr(self, string, options=curses.A_NORMAL, indent=0, mentioned=False):  # @UndefinedVariable
 		try:
 			
+			# wait until other threads have finished writing
+			self.lock.acquire_lock()
+
 			# check if comment needs to be line wrapped, indent it if so
 			if indent:
 				
@@ -155,14 +202,16 @@ class Pad(object):
 			if mentioned:
 				self.wl.windowListProperties[self]['sb_mentioned'] = True
 		except Exception as err:
-			self.dlog.excpt(err, msg="Pad.addstr() - indent != 0", cn=self.__class__.__name__)
+			self.dlog.excpt(err, msg=">>>in Pad.addstr() - indent != 0", cn=self.__class__.__name__)
 			if str(err) == "addstr() returned ERR":
 				self.dlog.msg("Pad full. Reinitializing..")
 				self.mypad = curses.newpad(self.pheight+Pad.padbuffersize, self.pwidth)  # @UndefinedVariable
-			
+		finally:
+			self.lock.release_lock()
+
 		# Increase unread line counter on inactive windows
 		if re.search(r'\n', string):
-			if not self._active:
+			if not self._active or not self.autoScroll:
 				try:
 					self.wl.set_property(self, 'sb_unread', True)
 					self.wl.windowListProperties[self]['sb_lines'] += 1
@@ -186,8 +235,8 @@ class Pad(object):
 				if unicodedata.east_asian_width(letter) is 'W':
 					lineLength +=1
 					
-		except Exception as err:
-			self.dlog.msg("Pad.calcline(): " + str(err))	
+		except Exception as e:
+			self.dlog.excpt(e, msg=">>>in Pad.calcline()", cn=self.__class__.__name__)			
 			
 		finally:	
 			return lineLength
@@ -237,10 +286,31 @@ class Pad(object):
 		if self._active:
 			self.dlog.msg("set_position: moving to " + str(value), 5)
 			self.move(value)
+			
+			# Update position on new line
+			if self.__position is self.size:
+				self.autoScroll = True
+				
+				# Clear unread elements
+				self.clear_unread_window_elements()
+# 					
+# 			# Don't scroll if user is reading backlog
+# 			else:
+# 				self.autoScroll = False
+# 				self.generate_unread_window_element()
 		
 	def auto_scroll(self):
-		if self.autoScroll is True:
-			self.set_position(self.size)
+		try:
+			
+			if self.autoScroll is True:
+				self.set_position(self.size)
+		
+			# TODO indicate there are new lines in the status bar
+			else:
+				pass
+			
+		except Exception as e:
+			self.dlog.excpt(e, msg=">>>in Pad.auto_scroll()", cn=self.__class__.__name__)
 			
 	# FIXME merge moveup and down into one def
 	def moveup(self, lines=1):
@@ -249,14 +319,21 @@ class Pad(object):
 			self.set_position(newPos)
 		else:
 			self.home()
+			
+		if newPos is not self.get_position()-lines:
+			self.autoScroll = False
+		else:
+			self.autoScroll = True
 		
 	def movedown(self, lines=1):
 		newPos = self.get_position()+lines
 		self.dlog.msg("self.size: " + str(self.size), 5)
 		if newPos <= self.size:
 			self.set_position(newPos)
+			self.autoScroll = False
 		else:
 			self.set_position(self.size)
+			self.autoScroll = True
 	
 	def home(self):
 		self.set_position(self.actualpmaxy)
@@ -278,7 +355,7 @@ class Pad(object):
 
 			self.mypad.refresh(newPos, 0, 1, 0, self.actualpmaxy, self.pmaxx)
 		except Exception as e:
-			self.dlog.excpt(e)
+			self.dlog.excpt(e, msg=">>>in Pad.move()", cn=self.__class__.__name__)
 			raise
 		
 			
@@ -301,19 +378,19 @@ class Pad(object):
 								pass
 							
 							postno += char
-						except Exception as err:
+						except Exception:
 							if len(postno) > 0:
 								return postno
 							return None 
 						
 				
-		except Exception as err:
-			self.dlog.msg("Pad.get_postno_of_marked_line: " + str(err))
+		except Exception as e:
+			self.dlog.excpt(e, msg=">>>in Pad.get_postno_of_marked_line()", cn=self.__class__.__name__)
 			return None
 		finally:
 			self.restore_postion(y, x)
 		
-	
+	# FIXME reversed line doesn't look right in tmux
 	def reverseline(self, pos_y, mode=curses.A_STANDOUT):  # @UndefinedVariable
 		'''Changes background to font and font to background in a pos_y (y-pos)'''
 		try:
@@ -330,9 +407,9 @@ class Pad(object):
 				
 				self.mypad.chgat(pos_y, x, 1,  attrs | mode)  # @UndefinedVariable
 			#	self.dlog.msg("Size of char: " + char +" | " + str(len(char)) + " | inch(): " + str(charattr) + " | cpn: " + str(color_pair_number))
-
-		except Exception as err:
-			self.dlog.msg("Pad.reverseline(): " + str(err))
+			
+		except Exception as e:
+			self.dlog.excpt(e, msg=">>>in Pad.reverseline()", cn=self.__class__.__name__)
 			raise
 	
 	# FIXME: resizing messes up the position
@@ -368,8 +445,8 @@ class Pad(object):
 			
 			self.reverseline(self.marked_line)
 			
-		except Exception as err:
-			self.dlog.msg("Pad.markline(): " + str(err))
+		except Exception as e:
+			self.dlog.excpt(e, msg=">>>in Pad.draw()", cn=self.__class__.__name__)
 			
 		finally:
 			self.restore_postion(y, x)
@@ -379,24 +456,28 @@ class Pad(object):
 		try:
 			if self.marked_line is not None:
 				self.reverseline(self.marked_line, curses.A_NORMAL)  # @UndefinedVariable
-		except Exception as err:
-			self.dlog.msg("Pad.unmarkline(): " + str(err))
-			pass
-		
+		except Exception as e:
+			self.dlog.excpt(e, msg=">>>in Pad.unmarkline()", cn=self.__class__.__name__)
 		
 	def save_position(self):
 		y, x = self.mypad.getyx()
 		return y, x
 	
 	def restore_postion(self, y, x):
-		self.mypad.move(y, x)
+		try:
+			self.mypad.move(y, x)
+		except Exception as e:
+			self.dlog.excpt(e, msg=">>>in Pad.restore_position()", cn=self.__class__.__name__)
 
 	def show_image(self):
 		pass
 			
 	def draw(self):
-		self.set_position(self.get_position())
-		self.stdscr.refresh()
+		try:
+			self.set_position(self.get_position())
+			self.stdscr.refresh()
+		except Exception as e:
+			self.dlog.excpt(e, msg=">>>in Pad.draw()", cn=self.__class__.__name__)
 		
 	def download_images(self):
 		pass

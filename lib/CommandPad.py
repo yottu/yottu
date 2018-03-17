@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 '''
 Created on Oct 9, 2015
 
@@ -16,7 +17,7 @@ class CommandPad(Pad):
 		self.usage()
 		
 	def on_resize(self):
-		self.dlog.msg("CommandPad: on_resize")
+		self.dlog.msg("CommandPad: on_resize", 5)
 		super(CommandPad, self).on_resize()
 		self.tb.on_resize()
 		self.sb.on_resize()
@@ -44,11 +45,11 @@ class CommandPad(Pad):
 		self.addstr("Quit: /quit (Hotkey: Alt+Q)\n")
 	
 	def usage(self):
-		self.dlog.msg(str(self.get_position()))
 		self.addstr("__   __   _   _    \n")
 		self.addstr("\ \ / /__| |_| |_ _  _\n")
 		self.addstr(" \ V / _ \  _|  _| || |\n")
 		self.addstr("  |_|\___/\__|\__|\_,_|\n")
-		self.addstr("Yottu v0.3 - https://github.com/yottu/yottu\n", curses.A_BOLD)  # @UndefinedVariable
+		self.addstr("Yottu v0.4 - https://github.com/yottu/yottu\n", curses.A_BOLD)  # @UndefinedVariable
+		self.addstr(u"฿ 135Hedzpgbhsiye5TnCus9QY31pCZHKYYJ\n".encode('utf-8'))  # @UndefinedVariable
 		self.addstr("\n")
 		self.addstr("Type /help for usage\n")
