@@ -260,8 +260,15 @@ class PostReply(object):
             # raise exception on error code
             response.raise_for_status()
             if re.search("is_error = \"true\"", response.text):
-                perror = re.search(r"Error: ([A-Za-z.,]\w*\s*)+", response.text).group(0)
-                raise PostReply.PostError(perror)
+                perror = "Unknown Error."
+                
+                try:
+                    perror = re.search(r"Error: ([A-Za-z.,]\w*\s*)+", response.text).group(0)
+                except:
+                    if re.search("blocked due to abuse", response.text):
+                        perror = "You are range banned ;_;"
+                finally:
+                    raise PostReply.PostError(perror)
             
             if response.status_code == 200 and self.dictOutput:
                 self.dictOutput.mark(comment)
@@ -273,10 +280,8 @@ class PostReply(object):
             
             return response.status_code
         
-        except AttributeError as err:
-            self.dlog.excpt(err, msg=">>>in PostReply.post()", cn=self.__class__.__name__)
-            raise
         except Exception as err:
             self.dlog.excpt(err, msg=">>>in PostReply.post()", cn=self.__class__.__name__)
+            raise
     
     
