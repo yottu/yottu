@@ -6,18 +6,21 @@ This class is used to handle posting replies including retrieving and displaying
 2018-03-17: removed v1 support and replaced it with v2 fallback
 '''
 
-import warnings
-import os.path
-import time
-import thread
-        
-import re
-from bs4 import BeautifulSoup
-import requests
 import mimetypes
+import os.path
+import re
+import thread
+import time
+import warnings
 
-from TermImage import TermImage
+import requests
+from bs4 import BeautifulSoup
+try:
+    from cStringIO import StringIO
+except:
+    from StringIO import StringIO
 from DebugLog import DebugLog
+from TermImage import TermImage
 
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
@@ -49,7 +52,7 @@ class PostReply(object):
         
         self.lock = thread.allocate_lock()
         self.dictOutput = None
-        self.bp = None
+        self.bp = None 
         
         self.dlog = DebugLog()
         
@@ -90,22 +93,27 @@ class PostReply(object):
             headers = {'Referer': self.site_ref, 'User-Agent': self.user_agent}
             r = requests.get(self.captcha2_url, headers=headers)
             
+            r.raise_for_status()
+
             html_content = r.content
             soup = BeautifulSoup(html_content, 'html.parser')
             
-            self.captcha2_challenge_text = soup.find("div", {'class': 'rc-imageselect-desc-no-canonical'}).text
+            try:
+                self.captcha2_challenge_text = soup.find("div", {'class': 'rc-imageselect-desc-no-canonical'}).text
+            except:
+                self.captcha2_challenge_text = soup.find("div", {'class': 'rc-imageselect-desc'}).text
+                
             self.captcha2_challenge_id = soup.find("div", {'class': 'fbc-imageselect-challenge'}).find('input')['value']
             
             # Get captcha image
             headers = {'Referer': self.captcha2_url, 'User-Agent': self.user_agent}
             r = requests.get(self.captcha2_payload_url + '?c=' + self.captcha2_challenge_id + '&k=' + self.sitekey, headers=headers)
             self.captcha2_image = r.content
-            self.save_image(self.captcha2_image_filename)
-        
-        
+            #self.save_image(self.captcha2_image_filename)
+            
         except Exception as err:
             self.dlog.excpt(err, msg=">>>in PostReply.get_captcha_challenge()", cn=self.__class__.__name__)
-        
+            raise
         
     def save_image(self, filename):
         """save image to file system"""
@@ -121,7 +129,7 @@ class PostReply(object):
         
         # Reformat picture to be displayed horizontally
         try:
-            TermImage.image_split_h(self.captcha2_image_filename)
+            TermImage.image_split_h(StringIO(self.captcha2_image), self.captcha2_image_filename)
         except Exception as err:
             self.dlog.warn(err, msg=">>>in PostReply.display_captcha()", cn=self.__class__.__name__)
         
@@ -141,29 +149,34 @@ class PostReply(object):
     # FIXME captchav2 update
     def defer(self, time_wait, **kwargs):
         ''' wait for timer to run out before posting '''
-        self.get_response()
-        captcha2_response = self.captcha2_response
-        self.dlog.msg("Waiting C: " + captcha2_response[:12] + str(kwargs))
+        
+        if not self.bp.cfg.get('user.pass.enabled'):
+            self.get_response()
+            captcha2_response = self.captcha2_response
+            self.dlog.msg("Waiting C: " + captcha2_response[:12] + str(kwargs), 4)
         self.bp.sb.setStatus("Deferring comment: " + str(time_wait) + "s")
         
         
         self.lock.acquire()
-        self.dlog.msg("Lock acquired C: " + captcha2_response[:12] + str(kwargs))
+        self.dlog.msg("Lock acquired for deferred post " + str(kwargs))
         
         try:   
             while time_wait > 0:
                 time.sleep(time_wait)
                 # get new lastpost value and see if post needs to be deferred further
                 time_wait = self.bp.time_last_posted_thread + 60 - int(time.time()) 
-        
-            kwargs.update(dict(captcha2_response=captcha2_response))
-            self.dlog.msg("Now posting: C: " + captcha2_response[:12] + str(kwargs))
+            
+            if not self.bp.cfg.get('user.pass.enabled'):
+                kwargs.update(dict(captcha2_response=captcha2_response))
+                self.dlog.msg("Now posting: C: " + captcha2_response[:12] + str(kwargs), 4)
+            else:
+                self.dlog.msg("Now posting deferred comment", 4)
+            
             rc = self.post(**kwargs)
             if rc != 200:
                 self.bp.sb.setStatus("Deferred comment was not posted: " + str(rc))
         except Exception as err:
             self.bp.sb.setStatus("Deferred: " + str(err))
-            pass
         finally:
             self.lock.release()
      
@@ -192,17 +205,56 @@ class PostReply(object):
             self.dlog.excpt(err, msg=">>>in PostReply.get_response()", cn=self.__class__.__name__)
 
 
+    def auth(self):
+        # Set user.pass.cookie by posting the auth form containing user.pass.token and user.pass.pin
+
+        try:
+            token = self.bp.cfg.get('user.pass.token')
+            pin = self.bp.cfg.get('user.pass.pin')
+            if not token:
+                token = self.bp.query_userinput(label="Token: ", input_type='text')
+
+            if not pin:
+                pin = self.bp.query_userinput(label="PIN: ", input_type='number')
+
+            self.dlog.msg("Authenticating Pass with PIN/Token length: " + str(len(pin)) + "/" + str(len(token)), 3)
+
+            data = dict(act='do_login', id=token, pin=pin)
+
+            res = requests.post('https://sys.4chan.org/auth', data=data)
+
+            self.bp.cfg.set('user.pass.cookie', res.cookies['pass_id'])
+
+            if self.bp.cfg.get('config.autosave'):
+				self.dlog.msg("Autosaving user.pass.cookie ..")
+				self.bp.cfg.writeConfig()
+
+        except KeyError as err:
+            self.dlog.excpt(err, msg=">>>in PostReply.auth()", cn=self.__class__.__name__)
+            raise PostReply.PostError("Could not authenticate pass token/pin.")
+        except Exception as err:
+            self.dlog.excpt(err, msg=">>>in PostReply.auth()", cn=self.__class__.__name__)
+
+
+
     def post(self, nickname="", comment="", subject="", file_attach="", ranger=False, captcha2_response=""):
         '''
         subject: not implemented
         file_attach: (/path/to/file.ext) will be uploaded as "file" + extension
         ranger: extract path from ranger's --choosefile file
         '''
-        
+        cookies = None
         try:
-            if not captcha2_response:
-                self.get_response()
-                captcha2_response = self.captcha2_response
+            if self.bp.cfg.get('user.pass.enabled'):
+
+                if not self.bp.cfg.get('user.pass.cookie'):
+                    # get and set new cookie from pass and pin
+                    self.auth()
+                cookies = dict(pass_id=self.bp.cfg.get('user.pass.cookie'),pass_enabled="1")
+
+            elif not captcha2_response:
+                    self.get_response()
+                    captcha2_response = self.captcha2_response
                 
             if nickname == None:
                 nickname = ""
@@ -237,7 +289,7 @@ class PostReply(object):
             #url = 'http://httpbin.org/status/404'
             #url = "http://localhost/" + self.board + "/post"
             #url = 'http://httpbin.org/post'
-            #url = 'https://requestb.in/tn3968tn'
+            #url = 'http://requestbin.fullcontact.com/1i28ed51'
     
     
             values = { 'MAX_FILE_SIZE' : (None, '4194304'),
@@ -253,15 +305,16 @@ class PostReply(object):
                      }
             
             headers = { 'User-Agent' : 'Mozilla/5.0 (X11; Linux x86_64)' }
-            
-            session = requests.session()
-            response = requests.post(url, headers=headers, files=values) 
+
+            response = requests.post(url, headers=headers, files=values, cookies=cookies)
             
             # raise exception on error code
             response.raise_for_status()
             if re.search("is_error = \"true\"", response.text):
                 perror = "Unknown Error."
                 
+                if self.bp.cfg.get('user.pass.cookie'):
+                    perror += " user.pass.cookie might be invalid."
                 try:
                     perror = re.search(r"Error: ([A-Za-z.,]\w*\s*)+", response.text).group(0)
                 except:
@@ -283,5 +336,3 @@ class PostReply(object):
         except Exception as err:
             self.dlog.excpt(err, msg=">>>in PostReply.post()", cn=self.__class__.__name__)
             raise
-    
-    

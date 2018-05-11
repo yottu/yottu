@@ -74,6 +74,10 @@ class Config(object):
 			'threadwatcher.enable': 'True', # 
 			'threadwatcher.skip_active_boards': 'False', #
 			'threadwatcher.update.interval': 300, #
+			'user.pass.enabled': 'False', #
+			'user.pass.cookie': '', #
+			'user.pass.pin': '', #
+			'user.pass.token': '', #
 			'user.options': '',  # 
 			'user.name': '', #
 			'user.tripcode' : '', # 

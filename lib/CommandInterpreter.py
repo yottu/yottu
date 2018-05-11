@@ -347,7 +347,7 @@ class CommandInterpreter(threading.Thread):
 			
 			else:
 				self.clinepos += 1
-				if self.tmode:
+				if self.tmode and self.command_history_pos == len(self.command_history):
 					self.stdscr.addstr(self.screensize_y-1, 0, "[>]", curses.A_BOLD)  # @UndefinedVariable
 				elif self.cmode and self.command_history_pos == len(self.command_history):
 					self.stdscr.addstr(self.screensize_y-1, 0, "[/]", curses.A_BOLD)  # @UndefinedVariable
@@ -432,6 +432,7 @@ class CommandInterpreter(threading.Thread):
 		try:
 			newPos = self.command_history_pos + count
 			if newPos >= 0 and newPos <= len(self.command_history):
+											
 				self.command = ""
 				self.command_pos = 0
 				
@@ -447,6 +448,11 @@ class CommandInterpreter(threading.Thread):
 						
 				else:
 					cmd = self.command_history[self.command_history_pos]
+
+				# Skip if command not preceeded by /say in tmode
+				if self.tmode and cmd[:4] != u"say ":
+					self.cmd_history(count)
+					return
 				
 				self.clear_cmdinput(str(self.command_history_pos))
 				self.clinepos = 4
@@ -565,12 +571,29 @@ class CommandInterpreter(threading.Thread):
 						+ str(active_thread_OP) + " | Comment: " + comment.encode('utf-8'), 4)
 			try:
 				active_window.post_prepare(comment=comment, filename=self.filename[0], ranger=self.filename[1])
-				self.captcha_mask = True
-				self.captcha_challenge_text = active_window.postReply.captcha2_challenge_text
-			except Exception as err:
-				self.dlog.msg("CommandInterpreter: BoardPad.set_captcha(): " + str(err))
+				if not self.cfg.get('user.pass.enabled'):
+					self.captcha_mask = True
+					self.captcha_challenge_text = active_window.postReply.captcha2_challenge_text
+				else:
+					response = active_window.post_submit()
 
-			
+					# Post succeeded # TODO remove redundancy #1/2
+					if response == 200:
+						active_window.update_thread()
+						self.time_last_posted = int(time.time())
+
+					elif response is "EPASS":
+						self.dlog.msg("Error: user.pass.enabled is set, but neither user.pass.cookie or (user.pass.token and user.pass.pin) are set.")
+					elif isinstance(response, tuple):
+						self.dlog.msg("Deferred comment: " + str(response), 3)
+					else:
+						self.dlog.msg("Could not post comment for " + str(response[1]) + " seconds.", 3)
+			except (PostReply.PostError, KeyError) as err:
+				self.dlog.warn(err, msg=">>>in CommandInterpreter.exec_com()", cn=self.__class__.__name__)
+				active_window.sb.setStatus(str(err))
+			except Exception as err:
+				self.dlog.excpt(err, msg=">>>in CommandInterpreter.exec_com()", cn=self.__class__.__name__)
+
 
 		# /captcha: show (0 args) and solve captcha (>0 args)
 		elif re.match(r"^captcha", self.command):
@@ -594,7 +617,7 @@ class CommandInterpreter(threading.Thread):
 				active_window.set_captcha(str(captcha))
 				response = active_window.post_submit() # throws PostError
 				
-				# Post succeeded
+				# Post succeeded # TODO remove redundancy #2/2
 				if response == 200:
 					active_window.update_thread()
 					self.time_last_posted = int(time.time())

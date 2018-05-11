@@ -6,6 +6,7 @@ Basic class for ncurses pads such as CommandPad and BoardPad
 '''
 from __future__ import division
 import curses
+from curses.textpad import Textbox, rectangle
 import unicodedata
 import re
 import thread
@@ -481,6 +482,59 @@ class Pad(object):
 		
 	def download_images(self):
 		pass
+
+	def query_userinput(self, label="Input: ", input_type="all", input_size=20):
+		# Display query for pass pin and switch to command mode
+
+		def valid_number(userchar):
+			if 47 < userchar < 58: # 0 - 9
+				return userchar
+			elif userchar == 263: # Backspace
+				return userchar
+			elif userchar == 10: # Enter
+				return 7 # Ctrl+G (Terminate)
+			else:
+				self.dlog.msg("Invalid user input: " +  (str(userchar)))
+				return False
+
+		def valid_text(userchar):
+			if 47 < userchar < 58: # 0 - 9
+				return userchar
+			if 64 < userchar < 90: # A - Z
+				return userchar
+			if 96 < userchar < 123: # a - z
+				return userchar
+			elif userchar == 263: # Backspace
+				return userchar
+			elif userchar == 10: # Enter
+				return 7 # Ctrl+G (Terminate)
+			else:
+				self.dlog.msg("Invalid user input: " +  (str(userchar)))
+				return False
+		
+		try:
+			total_size = len(label)+int(input_size)
+	
+			self.stdscr.addstr(2, 1, label)
+			editwin = curses.newwin(1, int(input_size), 2, 1+len(label)) # window size(y,x) cursor postion(y,x)
+			rectangle(self.stdscr, 1, 0, 3, 1+total_size+1) # y,x, height, width
+			self.stdscr.refresh()
+
+			box = Textbox(editwin)
+
+			if input_type == "number":
+				box.edit(valid_number)
+			elif input_type == "text":
+				box.edit(valid_text)
+			else:
+				box.edit()
+
+			userinput = box.gather()
+			
+			return userinput[:-1] # strip ctrl+g
+			
+		except Exception as err:
+			self.dlog.excpt(err, msg=">>>in Pad.query_userinput()", cn=self.__class__.__name__)	
 		
 	position = property(get_position, set_position, None, None)
 	nickname = property(get_nickname, set_nickname, None, None)

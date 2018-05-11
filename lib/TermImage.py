@@ -35,10 +35,10 @@ class TermImage(threading.Thread):
         except:
             raise
 
-    # Split image and resave        
+    # Split and save image
     @staticmethod
-    def image_split_h(image_filename):
-        with Image.open(image_filename) as image:
+    def image_split_h(image_in, image_out):
+        with Image.open(image_in) as image:
             (image_x, image_y) = image.size
             image_top = image.copy().crop((0, 0, image_x, image_y/3))
             image_center = image.copy().crop((0, image_y/3, image_x, image_y/3*2))
@@ -54,9 +54,7 @@ class TermImage(threading.Thread):
         image_horiz.paste(image_center, (image_x, 0))
         image_horiz.paste(image_bottom, (image_x*2, 0))
 
-
-        image_horiz.save(image_filename)
-        
+        image_horiz.save(image_out)
     
     @staticmethod
     def exec_cmd(full_cmd):

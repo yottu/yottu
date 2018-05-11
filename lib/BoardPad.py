@@ -156,11 +156,16 @@ class BoardPad(Pad):
 
 		
 	def post_prepare(self, comment="", filename=None, ranger=False, subject=""):
-		self.post_comment = comment
-		self.post_filename = filename
-		self.post_ranger = ranger
-		self.post_subject = subject
-		self.get_captcha()
+		try:
+			self.post_comment = comment
+			self.post_filename = filename
+			self.post_ranger = ranger
+			self.post_subject = subject
+			if not self.cfg.get('user.pass.enabled'):
+				self.get_captcha()
+		except Exception as err:
+			self.dlog.excpt(err, msg=">>>in BoardPad.post_prepare()", cn=self.__class__.__name__)
+			raise
 		
 	def get_captcha(self):
 		self.postReply.get_captcha_challenge()
@@ -173,7 +178,10 @@ class BoardPad(Pad):
 		
 	def post_submit(self):		
 		try:
-		
+#			if self.cfg.get('user.pass.enabled'):
+#				if not self.cfg.get('user.pass.token') and not self.cfg.get('user.pass.pin'):
+#					if not self.cfg.get('user.pass.cookie'):
+#						return "EPASS"
 			if not self.post_filename and not self.post_comment:
 				raise ValueError("Either filename or comment must be set.")
 			
