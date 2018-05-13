@@ -9,8 +9,8 @@ _imageboard appliances for professional shitposting in an enterprise environment
 ## INSTALL (FIXME: missing packages)
 ### Debian GNU/Linux
 ```
-sudo aptitude install python python-requests python-bs4 w3m-img \
-                      libimlib2 ranger feh xterm mpv sxiv
+sudo aptitude install python python-requests python-bs4 python-pil \ 
+                      w3m-img libimlib2 ranger feh xterm mpv sxiv
 git clone git://github.com/yottu/yottu.git
 cd yottu/
 python yottu.py
